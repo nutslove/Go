@@ -17,16 +17,16 @@ const (
 )
 
 func main() {
-	// AWSセッションを作成します
+	// AWSセッションを作成
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String("ap-northeast-1"), // 例: us-west-1
+		Region: aws.String("ap-northeast-1"),
 	})
 	if err != nil {
 		fmt.Println("Error creating session:", err)
 		return
 	}
 
-	// SQSサービスのクライアントを作成します
+	// SQSサービスのクライアントを作成
 	svc := sqs.New(sess)
 
 	sem := semaphore.NewWeighted(MaxConcurrentGoroutines) // セマフォを初期化
@@ -48,7 +48,7 @@ func main() {
 			return
 		}
 
-		// キューが空の場合、ループの最初に戻る
+		// キューが空の場合、"Received no messages"を出力してループの最初に戻る
 		if len(resp.Messages) == 0 {
 			fmt.Println("Received no messages")
 			continue
