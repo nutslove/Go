@@ -36,7 +36,7 @@ func main() {
 		QueueUrl:            aws.String(QueueURL),
 		MaxNumberOfMessages: aws.Int64(10), // 一度に受信する最大メッセージ数
 		VisibilityTimeout:   aws.Int64(30), // メッセージが他の受信者から見えなくなる時間（秒）
-		WaitTimeSeconds:     aws.Int64(20), // ポーリングの最大時間（ロングポーリング）20秒間メッセージを受信しない場合、ポーリングが終了(本コードでは"Received no messages"を出力してループの最初に戻る)
+		WaitTimeSeconds:     aws.Int64(3),  // ポーリングの最大時間（ロングポーリング）20秒間メッセージを受信しない場合、ポーリングが終了(本コードでは"Received no messages"を出力してループの最初に戻る)
 	}
 
 	for {
