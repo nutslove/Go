@@ -1,19 +1,18 @@
+// 受信を並列にすると同じメッセージが複数回処理されたので、並列化をやめてシングルスレッドで処理するようにした
 package main
 
 import (
-	"context"
 	"fmt"
-	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"golang.org/x/sync/semaphore"
+	// "golang.org/x/sync/semaphore"
 )
 
 const (
-	QueueURL                = "https://sqs.ap-northeast-1.amazonaws.com/299413808364/lee_test.fifo"
-	MaxConcurrentGoroutines = 5 // 同時に実行されるgoroutineの最大数
+	QueueURL = "https://sqs.ap-northeast-1.amazonaws.com/299413808364/lee_test.fifo"
+	// MaxConcurrentGoroutines = 5 // 同時に実行されるgoroutineの最大数
 )
 
 func main() {
@@ -29,8 +28,8 @@ func main() {
 	// SQSサービスのクライアントを作成
 	svc := sqs.New(sess)
 
-	sem := semaphore.NewWeighted(MaxConcurrentGoroutines) // セマフォを初期化
-	ctx := context.TODO()                                 // 通常、キャンセルやタイムアウトが必要な場合には適切なコンテキストを使用します
+	// sem := semaphore.NewWeighted(MaxConcurrentGoroutines) // セマフォを初期化
+	// ctx := context.TODO()                                 // 通常、キャンセルやタイムアウトが必要な場合には適切なコンテキストを使用します
 
 	// キューからメッセージを受信するためのパラメータ
 	receiveParams := &sqs.ReceiveMessageInput{
@@ -54,37 +53,45 @@ func main() {
 			continue
 		}
 
-		var wg sync.WaitGroup
+		// var wg sync.WaitGroup
 
 		// 受信したメッセージを処理
 		for _, message := range resp.Messages {
-			wg.Add(1)
+			// wg.Add(1)
 
 			// セマフォを利用してgoroutineの数を制限
-			if err := sem.Acquire(ctx, 1); err != nil {
-				wg.Done()
-				fmt.Println("Failed to acquire semaphore:", err)
-				continue
+			// if err := sem.Acquire(ctx, 1); err != nil {
+			// 	wg.Done()
+			// 	fmt.Println("Failed to acquire semaphore:", err)
+			// 	continue
+			// }
+
+			fmt.Printf("Message Body:  %s\n", *message.Body)
+			_, err := svc.DeleteMessage(&sqs.DeleteMessageInput{
+				QueueUrl:      aws.String(QueueURL),
+				ReceiptHandle: message.ReceiptHandle,
+			})
+			if err != nil {
+				fmt.Println("Failed to delete message:", err)
 			}
 
-			go func(msg *sqs.Message) {
-				defer wg.Done()
-				defer sem.Release(1) // goroutineが完了したらリリース
+			// go func(msg *sqs.Message) {
+			// 	defer wg.Done()
+			// 	defer sem.Release(1) // goroutineが完了したらリリース
 
-				// メッセージの処理
-				fmt.Printf("Message ID: %s\n", *message.MessageId)
-				fmt.Printf("Message Body: %s\n", *message.Body)
+			// 	// メッセージの処理
+			// 	// fmt.Printf("Message ID: %s\n", *message.MessageId)
+			// 	fmt.Printf("Message Body: %s\n", *message.Body)
 
-				// メッセージの削除（削除しないとキューにメッセージが残り続ける）
-				_, err := svc.DeleteMessage(&sqs.DeleteMessageInput{
-					QueueUrl:      aws.String(QueueURL),
-					ReceiptHandle: message.ReceiptHandle,
-				})
-				if err != nil {
-					fmt.Println("Failed to delete message:", err)
-				}
-
-			}(message)
+			// 	// メッセージの削除（削除しないとキューにメッセージが残り続ける）
+			// 	_, err := svc.DeleteMessage(&sqs.DeleteMessageInput{
+			// 		QueueUrl:      aws.String(QueueURL),
+			// 		ReceiptHandle: message.ReceiptHandle,
+			// 	})
+			// 	if err != nil {
+			// 		fmt.Println("Failed to delete message:", err)
+			// 	}
+			// }(message)
 		}
 	}
 }
