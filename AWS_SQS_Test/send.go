@@ -59,7 +59,7 @@ func main() {
 	// }
 	// defer close(c)
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 200; i++ {
 		sendmsg(i, svc)
 		fmt.Println("Message sent: ", i)
 	}

@@ -37,8 +37,8 @@ func main() {
 		QueueUrl:            aws.String(QueueURL),
 		MaxNumberOfMessages: aws.Int64(10), // 一度に受信する最大メッセージ数
 		VisibilityTimeout:   aws.Int64(30), // メッセージが他の受信者から見えなくなる時間（秒）
-		// WaitTimeSeconds:     aws.Int64(20), // ロングポーリングを有効にする時間（秒）
-		WaitTimeSeconds: aws.Int64(0), // ロングポーリングを無効にする
+		WaitTimeSeconds:     aws.Int64(20), // ロングポーリングを有効にする時間（秒）
+		// WaitTimeSeconds: aws.Int64(0), // ロングポーリングを無効にする
 	}
 
 	for {
