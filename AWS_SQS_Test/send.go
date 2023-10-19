@@ -18,7 +18,7 @@ const (
 // func sendmsg(i int, c chan int, svc *sqs.SQS) {
 func sendmsg(i int, svc *sqs.SQS) {
 
-	// 乱数生成器を初期化します。これは一度だけ実行する必要があります。
+	// 乱数生成器を初期化。これは一度だけ実行する必要がある。
 	rand.Seed(time.Now().UnixNano())
 
 	n := rand.Intn(1000000000000)

@@ -29,7 +29,7 @@ func main() {
 	svc := sqs.New(sess)
 
 	// sem := semaphore.NewWeighted(MaxConcurrentGoroutines) // セマフォを初期化
-	// ctx := context.TODO()                                 // 通常、キャンセルやタイムアウトが必要な場合には適切なコンテキストを使用します
+	// ctx := context.TODO()                                 // 通常、キャンセルやタイムアウトが必要な場合には適切なコンテキストを使用する
 
 	// キューからメッセージを受信するためのパラメータ
 	receiveParams := &sqs.ReceiveMessageInput{
