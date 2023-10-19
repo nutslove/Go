@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -36,12 +37,14 @@ func main() {
 		QueueUrl:            aws.String(QueueURL),
 		MaxNumberOfMessages: aws.Int64(10), // 一度に受信する最大メッセージ数
 		VisibilityTimeout:   aws.Int64(30), // メッセージが他の受信者から見えなくなる時間（秒）
-		WaitTimeSeconds:     aws.Int64(3),  // ポーリングの最大時間（ロングポーリング）20秒間メッセージを受信しない場合、ポーリングが終了(本コードでは"Received no messages"を出力してループの最初に戻る)
+		// WaitTimeSeconds:     aws.Int64(20), // ロングポーリングを有効にする時間（秒）
+		WaitTimeSeconds: aws.Int64(0), // ロングポーリングを無効にする
 	}
 
 	for {
 		// メッセージを受信
 		resp, err := svc.ReceiveMessage(receiveParams)
+		time.Sleep(1 * time.Second) // 1秒ごとに最大10件のメッセージを受信(処理)するためのsleep
 		if err != nil {
 			fmt.Println("Error receiving message:", err)
 			return
@@ -93,5 +96,7 @@ func main() {
 			// 	}
 			// }(message)
 		}
+
+		fmt.Println("----------------------------------------")
 	}
 }
