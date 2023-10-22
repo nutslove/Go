@@ -24,6 +24,11 @@ var sem = semaphore.NewWeighted(MaxConcurrentGoroutines) // セマフォを初�
 
 func sendmsg(i int, svc *sqs.SQS) {
 	defer wg.Done()
+	// セマフォを取得
+	if err := sem.Acquire(context.Background(), 1); err != nil { // 指定した同時実行数制限semから1つ実行権限を取得。上限に達していて取得できない場合は、取得でき次第、実行を開始
+		fmt.Println("Failed to acquire semaphore:", err)
+		return
+	}
 	defer sem.Release(1) // goroutineが完了したらリリース
 
 	n := rand.Intn(100000000000000)
@@ -45,7 +50,6 @@ func sendmsg(i int, svc *sqs.SQS) {
 	_, err := svc.SendMessage(sendMsgInput)
 	if err != nil {
 		fmt.Println("Error:", err)
-		sem.Release(1)
 		return
 	}
 	fmt.Println("Message sent:  Hello, SQS from Go!", i)
@@ -58,19 +62,12 @@ func main() {
 
 	svc := sqs.New(sess)
 
-	ctx := context.TODO() // 通常、キャンセルやタイムアウトが必要な場合には適切なコンテキストを使用
-
 	// 乱数生成器を初期化。これは一度だけ実行する必要がある。
 	rand.Seed(time.Now().UnixNano())
 
 	count := 10
 
 	for i := 1; i <= count; i++ {
-		// セマフォを取得
-		if err := sem.Acquire(ctx, 1); err != nil {
-			fmt.Println("Failed to acquire semaphore:", err)
-			continue
-		}
 		wg.Add(1)
 		go sendmsg(i, svc)
 	}
