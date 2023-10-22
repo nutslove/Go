@@ -19,14 +19,14 @@ const (
 	MaxConcurrentGoroutines = 2 // 同時に実行されるgoroutineの最大数
 )
 
-func sendmsg(i int, c chan int, svc *sqs.SQS, wg *sync.WaitGroup, sem *semaphore.Weighted) {
+var wg sync.WaitGroup
+var sem = semaphore.NewWeighted(MaxConcurrentGoroutines) // セマフォを初期化
+
+func sendmsg(i int, svc *sqs.SQS) {
 	defer wg.Done()
 	defer sem.Release(1) // goroutineが完了したらリリース
 
-	// 乱数生成器を初期化。これは一度だけ実行する必要がある。
-	rand.Seed(time.Now().UnixNano())
-
-	n := rand.Intn(1000000000000)
+	n := rand.Intn(100000000000000)
 
 	MessageDedupId := strconv.Itoa(n)
 	messageBody := "Hello, SQS from Go! " + strconv.Itoa(i)
@@ -45,24 +45,23 @@ func sendmsg(i int, c chan int, svc *sqs.SQS, wg *sync.WaitGroup, sem *semaphore
 	_, err := svc.SendMessage(sendMsgInput)
 	if err != nil {
 		fmt.Println("Error:", err)
+		sem.Release(1)
 		return
 	}
-	c <- i
+	fmt.Println("Message sent:  Hello, SQS from Go!", i)
 }
 
 func main() {
-	c := make(chan int)
-
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String("ap-northeast-1"),
 	}))
 
 	svc := sqs.New(sess)
 
-	sem := semaphore.NewWeighted(MaxConcurrentGoroutines) // セマフォを初期化
-	ctx := context.TODO()                                 // 通常、キャンセルやタイムアウトが必要な場合には適切なコンテキストを使用
+	ctx := context.TODO() // 通常、キャンセルやタイムアウトが必要な場合には適切なコンテキストを使用
 
-	var wg sync.WaitGroup
+	// 乱数生成器を初期化。これは一度だけ実行する必要がある。
+	rand.Seed(time.Now().UnixNano())
 
 	count := 10
 
@@ -73,16 +72,7 @@ func main() {
 			continue
 		}
 		wg.Add(1)
-		go sendmsg(i, c, svc, &wg, sem)
+		go sendmsg(i, svc)
 	}
-
-	go func() {
-		fmt.Println("Waiting for goroutines to finish")
-		wg.Wait()
-		close(c)
-	}()
-
-	for i := range c {
-		fmt.Println("Message sent: ", i)
-	}
+	wg.Wait()
 }
