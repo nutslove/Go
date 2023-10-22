@@ -1,22 +1,27 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"golang.org/x/sync/semaphore"
 )
 
 const (
-	QueueURL = "https://sqs.ap-northeast-1.amazonaws.com/299413808364/lee_test.fifo"
+	QueueURL                = "https://sqs.ap-northeast-1.amazonaws.com/299413808364/lee_test.fifo"
+	MaxConcurrentGoroutines = 2 // 同時に実行されるgoroutineの最大数
 )
 
-// func sendmsg(i int, c chan int, svc *sqs.SQS) {
-func sendmsg(i int, svc *sqs.SQS) {
+func sendmsg(i int, c chan int, svc *sqs.SQS, wg *sync.WaitGroup, sem *semaphore.Weighted) {
+	defer wg.Done()
+	defer sem.Release(1) // goroutineが完了したらリリース
 
 	// 乱数生成器を初期化。これは一度だけ実行する必要がある。
 	rand.Seed(time.Now().UnixNano())
@@ -42,11 +47,11 @@ func sendmsg(i int, svc *sqs.SQS) {
 		fmt.Println("Error:", err)
 		return
 	}
-	// c <- i
+	c <- i
 }
 
 func main() {
-	// c := make(chan int)
+	c := make(chan int)
 
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String("ap-northeast-1"),
@@ -54,20 +59,30 @@ func main() {
 
 	svc := sqs.New(sess)
 
-	// for i := 0; i < 10; i++ {
-	// 	go sendmsg(i, c, svc)
-	// }
-	// defer close(c)
+	sem := semaphore.NewWeighted(MaxConcurrentGoroutines) // セマフォを初期化
+	ctx := context.TODO()                                 // 通常、キャンセルやタイムアウトが必要な場合には適切なコンテキストを使用
 
-	for i := 0; i < 200; i++ {
-		sendmsg(i, svc)
-		fmt.Println("Message sent: ", i)
+	var wg sync.WaitGroup
+
+	count := 10
+
+	for i := 1; i <= count; i++ {
+		// セマフォを取得
+		if err := sem.Acquire(ctx, 1); err != nil {
+			fmt.Println("Failed to acquire semaphore:", err)
+			continue
+		}
+		wg.Add(1)
+		go sendmsg(i, c, svc, &wg, sem)
 	}
 
-	// for range [10]int{} {
-	// 	select {
-	// 	case index := <-c:
-	// 		fmt.Println("Message sent: ", index)
-	// 	}
-	// }
+	go func() {
+		fmt.Println("Waiting for goroutines to finish")
+		wg.Wait()
+		close(c)
+	}()
+
+	for i := range c {
+		fmt.Println("Message sent: ", i)
+	}
 }
