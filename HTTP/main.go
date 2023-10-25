@@ -13,7 +13,7 @@ func main() {
 
 	// for文でlistener.Accept()を呼び出すことで、複数のクライアントからのリクエストを受け付けることができる
 	for {
-		conn, err := listener.Accept()
+		conn, err := listener.Accept() // Acceptは、クライアントからのリクエストを待ち受ける。クライアントからのリクエストがあると、そのリクエストを表すnet.Connを返す。
 		if err != nil {
 			panic(err)
 		}
