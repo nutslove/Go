@@ -1,60 +1,85 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"errors"
+	"log"
 	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
-	listener, err := net.Listen("tcp", "localhost:8080")
-	if err != nil {
-		panic(err)
-	}
-
-	// for文でlistener.Accept()を呼び出すことで、複数のクライアントからのリクエストを受け付けることができる
-	for {
-		conn, err := listener.Accept() // Acceptは、クライアントからのリクエストを待ち受ける。クライアントからのリクエストがあると、そのリクエストを表すnet.Connを返す。
-		if err != nil {
-			panic(err)
-		}
-
-		// go handler(conn)
-		go handler_keep_alive(conn)
+	if err := run(); err != nil {
+		log.Fatalln(err)
 	}
 }
 
-// func handler(conn net.Conn) {
-// 	buf := make([]byte, 1024) // 1KB
-// 	n, err := conn.Read(buf)  // n is the number of bytes read from request
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	fmt.Println(n)
-// 	fmt.Println(string(buf[:n])) // http requestの中身を表(http header, http body)
+func run() (err error) {
+	// Handle SIGINT (CTRL+C) gracefully.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 
-// 	conn.Write([]byte("Hello! from Server"))
-
-// 	conn.Close() // このconnは、1つのクライアントとの通信を表す。 このconnを閉じることで、クライアントとの通信を終了する。
-// }
-
-// １回のTCPコネクションで、複数のリクエストを受け付ける(keep-alive)
-func handler_keep_alive(conn net.Conn) {
-	buf := make([]byte, 1024) // 最大1KBまでのリクエストを受け付ける
-
-	for {
-		n, err := conn.Read(buf) // n is the number of bytes read from request
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("受信バイト数: %d\n", n)
-		responseData := string(buf[:n])
-		fmt.Printf("受信データ: %s\n", responseData)
-		if responseData == `"close"` { // json.Marshal()で、文字列を[]byteに変換すると、文字列の前後にダブルクォーテーションが付与されるため、``で囲んで""をエスケープする必要がある。
-			fmt.Println("Close connection...")
-			conn.Close()
-			break
-		}
-
-		conn.Write([]byte("Hello! from Server"))
+	// Set up OpenTelemetry.
+	serviceName := "dice"
+	serviceVersion := "0.1.0"
+	otelShutdown, err := setupOTelSDK(ctx, serviceName, serviceVersion)
+	if err != nil {
+		return
 	}
+	// Handle shutdown properly so nothing leaks.
+	defer func() {
+		err = errors.Join(err, otelShutdown(context.Background()))
+	}()
+
+	// Start HTTP server.
+	srv := &http.Server{
+		Addr:         ":8080",
+		BaseContext:  func(_ net.Listener) context.Context { return ctx },
+		ReadTimeout:  time.Second,
+		WriteTimeout: 10 * time.Second,
+		Handler:      newHTTPHandler(),
+	}
+	srvErr := make(chan error, 1)
+	go func() {
+		srvErr <- srv.ListenAndServe()
+	}()
+
+	// Wait for interruption.
+	select {
+	case err = <-srvErr:
+		// Error when starting HTTP server.
+		return
+	case <-ctx.Done():
+		// Wait for first CTRL+C.
+		// Stop receiving signal notifications as soon as possible.
+		stop()
+	}
+
+	// When Shutdown is called, ListenAndServe immediately returns ErrServerClosed.
+	err = srv.Shutdown(context.Background())
+	return
+}
+
+func newHTTPHandler() http.Handler {
+	mux := http.NewServeMux()
+
+	// handleFunc is a replacement for mux.HandleFunc
+	// which enriches the handler's HTTP instrumentation with the pattern as the http.route.
+	handleFunc := func(pattern string, handlerFunc func(http.ResponseWriter, *http.Request)) {
+		// Configure the "http.route" for the HTTP instrumentation.
+		handler := otelhttp.WithRouteTag(pattern, http.HandlerFunc(handlerFunc))
+		mux.Handle(pattern, handler)
+	}
+
+	// Register handlers.
+	handleFunc("/rolldice", rolldice)
+
+	// Add HTTP instrumentation for the whole server.
+	handler := otelhttp.NewHandler(mux, "/")
+	return handler
 }
