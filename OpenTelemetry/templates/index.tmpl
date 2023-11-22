@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{{ .head_title }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+  </head>
+  <body>
+  <script src="/static/js/script.js"></script>
+	<h1>
+		{{ .title }}
+	</h1>
+  <p>
+    {{ .content }}
+  </p>
+  <form action="/login" method="post">
+    <label for="username">Username:</label>
+    <input type="text" name="username" placeholder="Username" required><br>
+    <label for="password">Password:</label>
+    <input type="password" name="password" placeholder="Password" required><br>
+    <input type="submit" value="Login">
+  </body>
+</html>

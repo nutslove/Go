@@ -1,0 +1,35 @@
+header {
+	display: flex;
+	top: 0; /*上の余白を無くす*/
+	left: 0; /*左の余白を無くす*/
+	width: 100%;
+	height: 80px;
+	background-color: #232f3e;
+	color: #fffffe;
+}
+
+header h1 {
+  margin: 0;
+  padding: 0;
+  font-size: 1.5em; /*文字の大きさ*/
+  line-height: 80px; /*文字の位置*/
+  color: #4c0d29;
+}
+
+body {
+	/* display: inline-block; */
+	text-align: center; /*中央寄せ*/
+	width: 100%; /*横幅*/
+  background-color: #635aa8;
+	margin: 0%; /*余白を無くす*/
+}
+
+a {
+	text-decoration: none;
+	color: white;
+}
+
+p {
+  color: rgb(17, 46, 174); /*文字色*/
+  font-size: 25px;
+}
