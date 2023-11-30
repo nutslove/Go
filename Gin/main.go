@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -13,10 +15,37 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	// "go.opentelemetry.io/otel/trace"
 )
 
+var router *gin.Engine
+
 func main() {
+	PostgresUser := os.Getenv("POSTGRES_USER")
+	PostgresPassword := os.Getenv("POSTGRES_PASSWORD")
+	PostgresDatabase := os.Getenv("POSTGRES_DB")
+
+	dsn := "port=5432 sslmode=disable TimeZone=Asia/Tokyo host=postgres" + " user=" + PostgresUser + " password=" + PostgresPassword + " dbname=" + PostgresDatabase
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		panic(err)
+	}
+
+	// セッションを利用するために、DBに接続する
+	sqldb, err := db.DB()
+	// 接続エラー時の処理
+	if err != nil {
+		panic(err)
+	}
+	// DB接続解除
+	defer sqldb.Close()
+
+	sqldb.SetMaxIdleConns(10)           // SetMaxIdleConns sets the maximum number of connections in the idle connection pool.
+	sqldb.SetMaxOpenConns(100)          // SetMaxOpenConns sets the maximum number of open connections to the database.
+	sqldb.SetConnMaxLifetime(time.Hour) // SetConnMaxLifetime sets the maximum amount of time a connection may be reused.
+
 	// Jaeger Exporterの設定
 	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint("http://jaeger:14268/api/traces")))
 	if err != nil {
@@ -34,7 +63,7 @@ func main() {
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
-	router := gin.Default()
+	router = gin.Default()
 	// 静的ファイルのルーティング
 	router.Static("/static", "./static")
 	router.Use(TracingMiddleware())
@@ -56,13 +85,9 @@ func main() {
 
 		// ログイン処理
 		if UserName == "admin" && Password == "admin" {
-			c.HTML(http.StatusOK, "index.tmpl", gin.H{
-				"head_title": "Golang-Gin",
-				"title":      "Welcome",
-				"content":    "Password Accepted",
-			})
+			AfterLogin(c)
 		} else {
-			c.HTML(403, "index.tmpl", gin.H{
+			c.HTML(http.StatusUnauthorized, "index.tmpl", gin.H{
 				"head_title": "Golang-Gin",
 				"title":      "Login Failed",
 				"content":    "Password Rejected",
@@ -73,6 +98,14 @@ func main() {
 	router.Run(":8080")
 }
 
+func AfterLogin(c *gin.Context) {
+	c.HTML(http.StatusOK, "main.tmpl", gin.H{
+		"head_title": "seeds_candle",
+		"title":      "Hope you spend a good time!",
+		"content":    "Happiness is a choice.",
+	})
+}
+
 func TracingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tr := otel.Tracer("gin-server")
@@ -80,17 +113,23 @@ func TracingMiddleware() gin.HandlerFunc {
 		ctx, span := tr.Start(ctx, c.Request.URL.Path) // トレースの開始 (スパンの開始)
 		defer span.End()                               // トレースの終了
 
+		c.Request = c.Request.WithContext(ctx) // コンテキストを更新
+		c.Next()                               // 次のミドルウェアを呼び出し // ここでgin.Contextが更新される // この後の処理はgin.Contextの値を参照することができる
+
+		// HTTPステータスコードが400以上の場合、エラーとしてマーク
+		statusCode := c.Writer.Status()
+		if statusCode >= 400 {
+			span.SetAttributes(attribute.Bool("error", true))
+		}
+
 		// Add attributes to the span
 		span.SetAttributes(
 			attribute.String("http.method", c.Request.Method),
 			attribute.String("http.path", c.Request.URL.Path),
 			attribute.String("http.host", c.Request.Host),
-			attribute.Int("http.status_code", c.Writer.Status()),
+			attribute.Int("http.status_code", statusCode),
 			attribute.String("http.user_agent", c.Request.UserAgent()),
 			attribute.String("http.remote_addr", c.Request.RemoteAddr),
 		)
-
-		c.Request = c.Request.WithContext(ctx) // コンテキストを更新
-		c.Next()
 	}
 }

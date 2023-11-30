@@ -50,7 +50,7 @@ func main() {
 
 	svc := sqs.New(sess)
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 200; i++ {
 		sendmsg(i, svc)
 		fmt.Println("Message sent: ", i)
 	}

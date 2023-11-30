@@ -12,8 +12,8 @@ RUN go mod download
 
 COPY *.go ./
 
-RUN go build -o /web_server
+RUN go build -o /user_exist_check
 
-EXPOSE 8080
+EXPOSE 8000
 
-CMD [ "/web_server" ]
+CMD [ "/user_exist_check" ]
