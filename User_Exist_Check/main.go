@@ -1,13 +1,22 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/semaphore"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/aws/smithy-go"
 )
 
 const (
@@ -15,12 +24,15 @@ const (
 )
 
 var (
-	sem              = semaphore.NewWeighted(MaxConcurrentGoroutines) // 同時に実行されるgoroutine数を管理(クローズするまでいつまでも実行可能)
-	no_db_user_count int
-	PostgresUser     = os.Getenv("POSTGRES_USER")
-	PostgresPassword = os.Getenv("POSTGRES_PASSWORD")
-	PostgresDatabase = os.Getenv("POSTGRES_DB")
-	dsn              = "port=5432 sslmode=disable TimeZone=Asia/Tokyo host=postgres" + " user=" + PostgresUser + " password=" + PostgresPassword + " dbname=" + PostgresDatabase
+	sem               = semaphore.NewWeighted(MaxConcurrentGoroutines) // 同時に実行されるgoroutine数を管理(クローズするまでいつまでも実行可能)
+	no_db_user_count  int64
+	no_exist_db_user  []string
+	no_exist_iam_user []string
+	wg                sync.WaitGroup
+	PostgresUser      = os.Getenv("POSTGRES_USER")
+	PostgresPassword  = os.Getenv("POSTGRES_PASSWORD")
+	PostgresDatabase  = os.Getenv("POSTGRES_DB")
+	dsn               = "port=5432 sslmode=disable TimeZone=Asia/Tokyo host=postgres" + " user=" + PostgresUser + " password=" + PostgresPassword + " dbname=" + PostgresDatabase
 )
 
 type System struct {
@@ -96,12 +108,21 @@ func main() {
 		panic(err)
 	}
 
-	db_users := []string{"db_user1", "db_user2", "db_user3"}
-	no_exist_db_user := DbuserExistCheck(DB, db_users...)
+	db_users := []string{"dbuser1", "dbuser2", "dbuser4", "dbuser5", "dbuser7"}
+	wg.Add(2)
+	go DbuserExistCheck(DB, db_users...)
+
+	iam_users := []string{"jo-lee@kddi.com", "lee-testuser-for-iam", "iamuser3", "iamuser4", "iamuser5"}
+	go AwsIamUserExistCheck(iam_users...)
+	wg.Wait()
+
 	fmt.Println("no_exist_user:", no_exist_db_user)
+	fmt.Println("no_exist_iam_user:", no_exist_iam_user)
 }
 
-func DbuserExistCheck(db *gorm.DB, user ...string) []string {
+func DbuserExistCheck(db *gorm.DB, db_user ...string) {
+	defer wg.Done()
+
 	// セッションを利用するために、DBに接続する
 	sqldb, err := db.DB()
 	if err != nil {
@@ -111,15 +132,46 @@ func DbuserExistCheck(db *gorm.DB, user ...string) []string {
 	// DBに対する処理が終わったら、DB接続を解除する
 	defer sqldb.Close()
 
-	no_exist_db_user := []string{"initial_value"}
-	// for _, v := range user {
+	for _, v := range db_user {
+		db.Where("dbuser = ?", v).Find(&Dbuserpassword{}).Count(&no_db_user_count)
+		if no_db_user_count == 0 {
+			no_exist_db_user = append(no_exist_db_user, v)
+			fmt.Printf("%v is not exist\n", v)
+		} else {
+			continue
+		}
+	}
+}
 
-	// 	sqldb.Model(&User{}).Where("name = ?", user).Count(&no_db_user_count)
-	// 	if no_db_user_count == 0 {
-	// 		no_exist_db_user = append(no_exist_db_user, v)
-	// 	} else {
-	// 		continue
-	// 	}
-	// }
-	return no_exist_db_user
+func AwsIamUserExistCheck(iam_user ...string) {
+	defer wg.Done()
+
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("ap-northeast-1"))
+
+	if err != nil {
+		fmt.Println("failed to load config")
+		panic(err)
+	}
+
+	svc := iam.NewFromConfig(cfg)
+
+	// IAMユーザの存在チェック
+	for _, v := range iam_user {
+		input := &iam.GetUserInput{
+			UserName: aws.String(v),
+		}
+
+		_, err := svc.GetUser(context.TODO(), input)
+		if err != nil {
+			var nsk *types.NoSuchEntityException
+			if errors.As(err, &nsk) {
+				fmt.Println("NoSuchEntityException")
+				no_exist_iam_user = append(no_exist_iam_user, v)
+			}
+			var apiErr smithy.APIError
+			if errors.As(err, &apiErr) {
+				fmt.Println("StatusCode:", apiErr.ErrorCode(), ", Msg:", apiErr.ErrorMessage())
+			}
+		}
+	}
 }

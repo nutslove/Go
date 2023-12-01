@@ -34,6 +34,8 @@ services:
       - POSTGRES_USER
       - POSTGRES_PASSWORD
       - POSTGRES_DB
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
     depends_on: # wait for postgres to be ready before starting
       - postgres
   postgres:
