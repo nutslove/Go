@@ -112,7 +112,7 @@ func main() {
 	wg.Add(2)
 	go DbuserExistCheck(DB, db_users...)
 
-	iam_users := []string{"jo-lee@kddi.com", "lee-testuser-for-iam", "iamuser3", "iamuser4", "iamuser5"}
+	iam_users := []string{"minorun365", "lee-testuser-for-iam", "iamuser3", "iamuser4", "iamuser5"}
 	go AwsIamUserExistCheck(iam_users...)
 	wg.Wait()
 
