@@ -40,17 +40,18 @@ import (
 
 var (
 	// sem               = semaphore.NewWeighted(MaxConcurrentGoroutines) // 同時に実行されるgoroutine数を管理(クローズするまでいつまでも実行可能)
-	router            *gin.Engine
-	no_db_user_count  int64
-	no_exist_db_user  []string
-	no_exist_iam_user []string
-	no_exist_os_user  []string
-	wg                sync.WaitGroup
-	mu                sync.Mutex
-	PostgresUser      = os.Getenv("POSTGRES_USER")
-	PostgresPassword  = os.Getenv("POSTGRES_PASSWORD")
-	PostgresDatabase  = os.Getenv("POSTGRES_DB")
-	dsn               = "port=5432 sslmode=disable TimeZone=Asia/Tokyo host=postgres" + " user=" + PostgresUser + " password=" + PostgresPassword + " dbname=" + PostgresDatabase
+	router *gin.Engine
+	// 以下をグローバル変数として定義すると異なるリクエスト間で値が共有されてしまうため、関数内でローカル変数として定義すること！
+	// no_db_user_count  int64
+	// no_exist_db_user  []string
+	// no_exist_iam_user []string
+	// no_exist_os_user  []string
+	wg               sync.WaitGroup
+	mu               sync.Mutex
+	PostgresUser     = os.Getenv("POSTGRES_USER")
+	PostgresPassword = os.Getenv("POSTGRES_PASSWORD")
+	PostgresDatabase = os.Getenv("POSTGRES_DB")
+	dsn              = "port=5432 sslmode=disable TimeZone=Asia/Tokyo host=postgres" + " user=" + PostgresUser + " password=" + PostgresPassword + " dbname=" + PostgresDatabase
 )
 
 type System struct {
@@ -115,6 +116,7 @@ func init() {
 // 【完】AWS SDKを使って、IAMユーザの存在チェックを実装すること！
 // 【完】goroutineを使って並列処理を実装すること！
 // 【完】テキストファイル(OSユーザリスト)をS3からダウンロードして読み込んでリストにOSユーザが存在するか実装！
+// 短い期間でF5を連打するとno_exist_xx_user変数が初期化されず、(特にIAMユーザが)前回の結果が残ったままになる。。要確認！
 // Ginを使ってGetリクエストを受け取って、存在しないAD,LDAP,IAM,DB,OSユーザの情報をjson形式で返すように実装！
 // → ADとLDAP以外は実装完了。DBは実態に合わせて実装すること
 // json形式でうけとったリクエストを構造体に変換すること！
@@ -155,7 +157,7 @@ func main() {
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
 	router = gin.Default()
-	router.Use(TracingMiddleware())
+	// _, ctx := router.Use(TracingMiddleware())
 
 	// AWS SDKの設定をロード
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("ap-northeast-1"))
@@ -167,14 +169,46 @@ func main() {
 	router.GET("/", func(c *gin.Context) {
 		wg.Add(3)
 
+		tr := otel.Tracer("User-Exist-Check")
+		ctx := c.Request.Context() // トレースのルートとなるコンテキストを生成
+		// ctx, span := tr.Start(ctx, c.Request.URL.Path) // トレースの開始 (スパンの開始)
+		// defer span.End()                               // トレースの終了
+		ctx, parentSpan := tr.Start(ctx, c.Request.URL.Path) // トレースの開始 (スパンの開始)
+		defer parentSpan.End()                               // トレースの終了
+
+		c.Request = c.Request.WithContext(ctx) // コンテキストを更新
+		c.Next()                               // 次のミドルウェアを呼び出し // ここでgin.Contextが更新される // この後の処理はgin.Contextの値を参照することができる
+
+		// HTTPステータスコードが400以上の場合、エラーとしてマーク
+		statusCode := c.Writer.Status()
+		if statusCode >= 400 {
+			// span.SetAttributes(attribute.Bool("error", true))
+			parentSpan.SetAttributes(attribute.Bool("error", true))
+		}
+
+		// Add attributes to the span
+		// span.SetAttributes(
+		parentSpan.SetAttributes(
+			attribute.String("http.method", c.Request.Method),
+			attribute.String("http.path", c.Request.URL.Path),
+			attribute.String("http.host", c.Request.Host),
+			attribute.Int("http.status_code", statusCode),
+			attribute.String("http.user_agent", c.Request.UserAgent()),
+			attribute.String("http.remote_addr", c.Request.RemoteAddr),
+		)
+
+		no_exist_db_user := []string{}
+		no_exist_iam_user := []string{}
+		no_exist_os_user := []string{}
+
 		db_users := []string{"dbuser1", "dbuser2", "dbuser4", "dbuser5", "dbuser7"}
-		go DbuserExistCheck(db_users...)
+		go DbuserExistCheck(ctx, &no_exist_db_user, db_users...)
 
 		iam_users := []string{"minorun365", "lee-testuser-for-iam", "iamuser3", "iamuser4", "iamuser5"}
-		go AwsIamUserExistCheck(cfg, iam_users...)
+		go AwsIamUserExistCheck(ctx, &no_exist_iam_user, cfg, iam_users...)
 
 		os_users := []string{"T232323", "Z121212", "Z343434", "M565656", "M090909", "M101010", "K232323"}
-		go OsUserExistCheck(cfg, os_users...)
+		go OsUserExistCheck(ctx, &no_exist_os_user, cfg, os_users...)
 
 		wg.Wait() // wait until all goroutines are finished (including goroutines that are not created in this main function)
 
@@ -187,18 +221,19 @@ func main() {
 		fmt.Println("no_exist_db_user:", no_exist_db_user)
 		fmt.Println("no_exist_iam_user:", no_exist_iam_user)
 		fmt.Println("no_exist_os_user:", no_exist_os_user)
-
-		// 初期化 (スライスの中身を空にする) しないと次のリクエストで前回の結果が残ってしまう
-		no_exist_db_user = nil
-		no_exist_iam_user = nil
-		no_exist_os_user = nil
 	})
 
 	router.Run(":8000") // listen and serve on
 }
 
-func DbuserExistCheck(db_user ...string) {
+func DbuserExistCheck(ctx context.Context, no_exist_db_user *[]string, db_user ...string) {
 	defer wg.Done()
+
+	// トレーサーを取得
+	tr := otel.Tracer("DbuserExistCheck")
+	// 新しいSpanを開始
+	_, span := tr.Start(ctx, "DbuserExistCheck")
+	defer span.End()
 
 	// DB接続
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -216,10 +251,11 @@ func DbuserExistCheck(db_user ...string) {
 	// // DBに対する処理が終わったら、DB接続を解除する
 	// defer sqldb.Close()
 
+	no_db_user_count := int64(0) // int64 型の数字 0 を代入
 	for _, v := range db_user {
 		db.Where("dbuser = ?", v).Find(&Dbuserpassword{}).Count(&no_db_user_count)
 		if no_db_user_count == 0 {
-			no_exist_db_user = append(no_exist_db_user, v)
+			*no_exist_db_user = append(*no_exist_db_user, v)
 			fmt.Printf("%v is not exist\n", v)
 		} else {
 			continue
@@ -227,8 +263,14 @@ func DbuserExistCheck(db_user ...string) {
 	}
 }
 
-func AwsIamUserExistCheck(cfg aws.Config, iam_user ...string) {
+func AwsIamUserExistCheck(ctx context.Context, no_exist_iam_user *[]string, cfg aws.Config, iam_user ...string) {
 	defer wg.Done()
+
+	// トレーサーを取得
+	tr := otel.Tracer("AwsIamUserExistCheck")
+	// 新しいSpanを開始
+	_, span := tr.Start(ctx, "AwsIamUserExistCheck")
+	defer span.End()
 
 	svc := iam.NewFromConfig(cfg)
 
@@ -248,7 +290,7 @@ func AwsIamUserExistCheck(cfg aws.Config, iam_user ...string) {
 				if errors.As(err, &nsk) {
 					fmt.Println("NoSuchEntityException")
 					mu.Lock()
-					no_exist_iam_user = append(no_exist_iam_user, v)
+					*no_exist_iam_user = append(*no_exist_iam_user, v)
 					mu.Unlock()
 				}
 				var apiErr smithy.APIError
@@ -263,8 +305,14 @@ func AwsIamUserExistCheck(cfg aws.Config, iam_user ...string) {
 	// main関数内のwg.Wait()とここにあるwg.Wait()の2つのwg.Wait()がお互いを待ち合うことになり、デッドロックが発生する。
 }
 
-func OsUserExistCheck(cfg aws.Config, os_user ...string) {
+func OsUserExistCheck(ctx context.Context, no_exist_os_user *[]string, cfg aws.Config, os_user ...string) {
 	defer wg.Done()
+
+	// トレーサーを取得
+	tr := otel.Tracer("OsUserExistCheck")
+	// 新しいSpanを開始
+	_, span := tr.Start(ctx, "OsUserExistCheck")
+	defer span.End()
 
 	svc := s3.NewFromConfig(cfg)
 
@@ -297,6 +345,7 @@ func OsUserExistCheck(cfg aws.Config, os_user ...string) {
 		panic(err)
 	}
 	defer file.Close()
+
 	body, err := io.ReadAll(result.Body)
 	if err != nil {
 		log.Printf("Couldn't read object body from %v. Here's why: %v\n", objectName, err)
@@ -320,11 +369,11 @@ func OsUserExistCheck(cfg aws.Config, os_user ...string) {
 
 	// data := make([]byte, 1024) // 1024byteのスライスを作成. 1024byteより大きいデータがある場合は動的に拡張される
 	f, err := os.Open("userlist")
-	defer f.Close()
 	if err != nil {
 		fmt.Println("failed to open file")
 		panic(err)
 	}
+	defer f.Close()
 	// count, err := f.Read(data)
 	data, err := ioutil.ReadAll(f)
 	if err != nil {
@@ -343,7 +392,7 @@ func OsUserExistCheck(cfg aws.Config, os_user ...string) {
 			} else {
 				fmt.Printf("String '%s' not found in file '%s'\n", v, objectName)
 				mu.Lock()
-				no_exist_os_user = append(no_exist_os_user, v)
+				*no_exist_os_user = append(*no_exist_os_user, v)
 				mu.Unlock()
 			}
 		}(v)
@@ -353,30 +402,34 @@ func OsUserExistCheck(cfg aws.Config, os_user ...string) {
 	// fmt.Println("Data: ", string(data[:count]))
 }
 
-func TracingMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		tr := otel.Tracer("User-Exist-Check")
-		ctx := c.Request.Context()                     // トレースのルートとなるコンテキストを生成
-		ctx, span := tr.Start(ctx, c.Request.URL.Path) // トレースの開始 (スパンの開始)
-		defer span.End()                               // トレースの終了
+// func TracingMiddleware() (gin.HandlerFunc, context.Context) {
+// 	return func(c *gin.Context) {
+// 		tr := otel.Tracer("User-Exist-Check")
+// 		ctx := c.Request.Context() // トレースのルートとなるコンテキストを生成
+// 		// ctx, span := tr.Start(ctx, c.Request.URL.Path) // トレースの開始 (スパンの開始)
+// 		// defer span.End()                               // トレースの終了
+// 		ctx, parentSpan := tr.Start(ctx, c.Request.URL.Path) // トレースの開始 (スパンの開始)
+// 		defer parentSpan.End()                               // トレースの終了
 
-		c.Request = c.Request.WithContext(ctx) // コンテキストを更新
-		c.Next()                               // 次のミドルウェアを呼び出し // ここでgin.Contextが更新される // この後の処理はgin.Contextの値を参照することができる
+// 		c.Request = c.Request.WithContext(ctx) // コンテキストを更新
+// 		c.Next()                               // 次のミドルウェアを呼び出し // ここでgin.Contextが更新される // この後の処理はgin.Contextの値を参照することができる
 
-		// HTTPステータスコードが400以上の場合、エラーとしてマーク
-		statusCode := c.Writer.Status()
-		if statusCode >= 400 {
-			span.SetAttributes(attribute.Bool("error", true))
-		}
+// 		// HTTPステータスコードが400以上の場合、エラーとしてマーク
+// 		statusCode := c.Writer.Status()
+// 		if statusCode >= 400 {
+// 			// span.SetAttributes(attribute.Bool("error", true))
+// 			parentSpan.SetAttributes(attribute.Bool("error", true))
+// 		}
 
-		// Add attributes to the span
-		span.SetAttributes(
-			attribute.String("http.method", c.Request.Method),
-			attribute.String("http.path", c.Request.URL.Path),
-			attribute.String("http.host", c.Request.Host),
-			attribute.Int("http.status_code", statusCode),
-			attribute.String("http.user_agent", c.Request.UserAgent()),
-			attribute.String("http.remote_addr", c.Request.RemoteAddr),
-		)
-	}
-}
+// 		// Add attributes to the span
+// 		// span.SetAttributes(
+// 		parentSpan.SetAttributes(
+// 			attribute.String("http.method", c.Request.Method),
+// 			attribute.String("http.path", c.Request.URL.Path),
+// 			attribute.String("http.host", c.Request.Host),
+// 			attribute.Int("http.status_code", statusCode),
+// 			attribute.String("http.user_agent", c.Request.UserAgent()),
+// 			attribute.String("http.remote_addr", c.Request.RemoteAddr),
+// 		)
+// 	}, ctx
+// }
