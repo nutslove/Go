@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -23,6 +24,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3_type "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
+	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 )
 
 // const (
@@ -31,6 +40,7 @@ import (
 
 var (
 	// sem               = semaphore.NewWeighted(MaxConcurrentGoroutines) // 同時に実行されるgoroutine数を管理(クローズするまでいつまでも実行可能)
+	router            *gin.Engine
 	no_db_user_count  int64
 	no_exist_db_user  []string
 	no_exist_iam_user []string
@@ -104,15 +114,49 @@ func init() {
 ///////////// ToDo /////////////
 // 【完】AWS SDKを使って、IAMユーザの存在チェックを実装すること！
 // 【完】goroutineを使って並列処理を実装すること！
-// Ginを使ってGetリクエストをjson形式で受け取って、存在しないAD,LDAP,IAM,DB,OSユーザの情報をjson形式で返すように実装！
+// 【完】テキストファイル(OSユーザリスト)をS3からダウンロードして読み込んでリストにOSユーザが存在するか実装！
+// Ginを使ってGetリクエストを受け取って、存在しないAD,LDAP,IAM,DB,OSユーザの情報をjson形式で返すように実装！
+// → ADとLDAP以外は実装完了。DBは実態に合わせて実装すること
+// json形式でうけとったリクエストを構造体に変換すること！
+// gin-with-otel側でこのuser-exist-checkをGETリクエストで呼び出して、gin-with-otel側でuser-exist-checkからの結果をjson形式で受け取って表示するように実装！
+// IAM,DB,OS,ADなど処理ごとにSpanを作成すること！
+// エラーハンドリングを実装すること！（どういう時にpanicするか、どういう時にエラーを返すか、どういう時にログを出力するかなど）
 // jsonを扱う練習
-// テキストファイル(OSユーザリスト)を読み込んで、その内容をjson形式で返すように実装！
 // テストコードを書くこと！
 // ログ出力を実装すること！
 // OpenTelemetry設定を追加すること！
+// context.TODO()が何か調べること！
+// AWS GO SDK V2のの仕様ｋを調べること！(config.LoadDefaultConfigやNewFromConfig、errors.Asやsmithy.APIErrorなど)
 ///////////// ToDo /////////////
 
 func main() {
+	// Ginの設定
+	router = gin.Default()
+
+	// OTLPエクスポーターの設定
+	exporter, err := otlptracehttp.New(context.Background(),
+		otlptracehttp.WithEndpoint("jaeger:4318"),
+		otlptracehttp.WithInsecure(), // TLSを無効にする場合に指定
+	)
+	if err != nil {
+		fmt.Printf("Failed to create exporter: %v", err)
+		panic(err)
+	}
+
+	// Tracerの設定
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(exporter),
+		trace.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL, // SchemaURL is the schema URL used to generate the trace ID. Must be set to an absolute URL.
+			semconv.ServiceNameKey.String("User-Exist-Check"), // ServiceNameKey is the key used to identify the service name in a Resource.
+		)),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
+	router = gin.Default()
+	router.Use(TracingMiddleware())
+
 	// AWS SDKの設定をロード
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("ap-northeast-1"))
 	if err != nil {
@@ -120,32 +164,48 @@ func main() {
 		panic(err)
 	}
 
+	router.GET("/", func(c *gin.Context) {
+		wg.Add(3)
+
+		db_users := []string{"dbuser1", "dbuser2", "dbuser4", "dbuser5", "dbuser7"}
+		go DbuserExistCheck(db_users...)
+
+		iam_users := []string{"minorun365", "lee-testuser-for-iam", "iamuser3", "iamuser4", "iamuser5"}
+		go AwsIamUserExistCheck(cfg, iam_users...)
+
+		os_users := []string{"T232323", "Z121212", "Z343434", "M565656", "M090909", "M101010", "K232323"}
+		go OsUserExistCheck(cfg, os_users...)
+
+		wg.Wait() // wait until all goroutines are finished (including goroutines that are not created in this main function)
+
+		c.JSON(http.StatusOK, gin.H{
+			"no_exist_db_user":  no_exist_db_user,
+			"no_exist_iam_user": no_exist_iam_user,
+			"no_exist_os_user":  no_exist_os_user,
+		})
+
+		fmt.Println("no_exist_db_user:", no_exist_db_user)
+		fmt.Println("no_exist_iam_user:", no_exist_iam_user)
+		fmt.Println("no_exist_os_user:", no_exist_os_user)
+
+		// 初期化 (スライスの中身を空にする) しないと次のリクエストで前回の結果が残ってしまう
+		no_exist_db_user = nil
+		no_exist_iam_user = nil
+		no_exist_os_user = nil
+	})
+
+	router.Run(":8000") // listen and serve on
+}
+
+func DbuserExistCheck(db_user ...string) {
+	defer wg.Done()
+
 	// DB接続
-	DB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		fmt.Println("failed to connect database")
 		panic(err)
 	}
-
-	db_users := []string{"dbuser1", "dbuser2", "dbuser4", "dbuser5", "dbuser7"}
-	wg.Add(2)
-	go DbuserExistCheck(DB, db_users...)
-
-	iam_users := []string{"minorun365", "lee-testuser-for-iam", "iamuser3", "iamuser4", "iamuser5"}
-	go AwsIamUserExistCheck(cfg, iam_users...)
-
-	os_users := []string{"T232323", "Z121212", "Z343434", "M565656", "M090909", "M101010", "K232323"}
-	go OsUserExistCheck(cfg, os_users...)
-
-	wg.Wait() // wait until all goroutines are finished (including goroutines that are not created in this function)
-
-	fmt.Println("no_exist_db_user:", no_exist_db_user)
-	fmt.Println("no_exist_iam_user:", no_exist_iam_user)
-	fmt.Println("no_exist_os_user:", no_exist_os_user)
-}
-
-func DbuserExistCheck(db *gorm.DB, db_user ...string) {
-	defer wg.Done()
 
 	// // セッションを利用するために、DBに接続する
 	// sqldb, err := db.DB()
@@ -226,6 +286,7 @@ func OsUserExistCheck(cfg aws.Config, os_user ...string) {
 		if errors.As(err, &apiErr) {
 			fmt.Println("StatusCode:", apiErr.ErrorCode(), ", Msg:", apiErr.ErrorMessage())
 		}
+		return
 	}
 
 	// レスポンスのボディをファイルに書き込む
@@ -233,15 +294,18 @@ func OsUserExistCheck(cfg aws.Config, os_user ...string) {
 	file, err := os.Create(objectName)
 	if err != nil {
 		log.Printf("Couldn't create file %v. Here's why: %v\n", objectName, err)
+		panic(err)
 	}
 	defer file.Close()
 	body, err := io.ReadAll(result.Body)
 	if err != nil {
 		log.Printf("Couldn't read object body from %v. Here's why: %v\n", objectName, err)
+		panic(err)
 	}
 	_, err = file.Write(body)
 	if err != nil {
 		log.Printf("Couldn't write object body to file %v. Here's why: %v\n", objectName, err)
+		panic(err)
 	}
 
 	// // ディレクトリの内容を読み込む
@@ -287,4 +351,32 @@ func OsUserExistCheck(cfg aws.Config, os_user ...string) {
 
 	// fmt.Printf("read %d bytes\n", count)
 	// fmt.Println("Data: ", string(data[:count]))
+}
+
+func TracingMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tr := otel.Tracer("User-Exist-Check")
+		ctx := c.Request.Context()                     // トレースのルートとなるコンテキストを生成
+		ctx, span := tr.Start(ctx, c.Request.URL.Path) // トレースの開始 (スパンの開始)
+		defer span.End()                               // トレースの終了
+
+		c.Request = c.Request.WithContext(ctx) // コンテキストを更新
+		c.Next()                               // 次のミドルウェアを呼び出し // ここでgin.Contextが更新される // この後の処理はgin.Contextの値を参照することができる
+
+		// HTTPステータスコードが400以上の場合、エラーとしてマーク
+		statusCode := c.Writer.Status()
+		if statusCode >= 400 {
+			span.SetAttributes(attribute.Bool("error", true))
+		}
+
+		// Add attributes to the span
+		span.SetAttributes(
+			attribute.String("http.method", c.Request.Method),
+			attribute.String("http.path", c.Request.URL.Path),
+			attribute.String("http.host", c.Request.Host),
+			attribute.Int("http.status_code", statusCode),
+			attribute.String("http.user_agent", c.Request.UserAgent()),
+			attribute.String("http.remote_addr", c.Request.RemoteAddr),
+		)
+	}
 }

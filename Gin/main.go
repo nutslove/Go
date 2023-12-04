@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -10,14 +11,14 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/jaeger"
+	_ "go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	// "go.opentelemetry.io/otel/trace"
 )
 
 var router *gin.Engine
@@ -46,10 +47,19 @@ func main() {
 	sqldb.SetMaxOpenConns(100)          // SetMaxOpenConns sets the maximum number of open connections to the database.
 	sqldb.SetConnMaxLifetime(time.Hour) // SetConnMaxLifetime sets the maximum amount of time a connection may be reused.
 
-	// Jaeger Exporterの設定
-	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint("http://jaeger:14268/api/traces")))
+	// // Jaeger Exporterの設定
+	// exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint("http://jaeger:14268/api/traces")))
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// OTLPエクスポーターの設定
+	exporter, err := otlptracehttp.New(context.Background(),
+		otlptracehttp.WithEndpoint("jaeger:4318"),
+		otlptracehttp.WithInsecure(), // TLSを無効にする場合に指定
+	)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to create exporter: %v", err)
 	}
 
 	// Tracerの設定
