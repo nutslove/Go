@@ -116,11 +116,10 @@ func init() {
 // 【完】AWS SDKを使って、IAMユーザの存在チェックを実装すること！
 // 【完】goroutineを使って並列処理を実装すること！
 // 【完】テキストファイル(OSユーザリスト)をS3からダウンロードして読み込んでリストにOSユーザが存在するか実装！
-// 短い期間でF5を連打するとno_exist_xx_user変数が初期化されず、(特にIAMユーザが)前回の結果が残ったままになる。。要確認！
-// Ginを使ってGetリクエストを受け取って、存在しないAD,LDAP,IAM,DB,OSユーザの情報をjson形式で返すように実装！
+// 【完】gin-with-otel側でこのuser-exist-checkをGETリクエストで呼び出して、gin-with-otel側でuser-exist-checkからの結果をjson形式で受け取って表示するように実装！
+// 【完】Ginを使ってGetリクエストを受け取って、存在しないAD,LDAP,IAM,DB,OSユーザの情報をjson形式で返すように実装！
 // → ADとLDAP以外は実装完了。DBは実態に合わせて実装すること
-// json形式でうけとったリクエストを構造体に変換すること！
-// gin-with-otel側でこのuser-exist-checkをGETリクエストで呼び出して、gin-with-otel側でuser-exist-checkからの結果をjson形式で受け取って表示するように実装！
+// Gin側でjson形式でデータを送るようにして、うけとったJsonリクエストを構造体に変換すること！
 // IAM,DB,OS,ADなど処理ごとにSpanを作成すること！
 // エラーハンドリングを実装すること！（どういう時にpanicするか、どういう時にエラーを返すか、どういう時にログを出力するかなど）
 // jsonを扱う練習
@@ -130,6 +129,14 @@ func init() {
 // context.TODO()が何か調べること！
 // AWS GO SDK V2のの仕様ｋを調べること！(config.LoadDefaultConfigやNewFromConfig、errors.Asやsmithy.APIErrorなど)
 ///////////// ToDo /////////////
+
+type UserExistCheck struct {
+	Db_User       []string `json:"db_user"`
+	Iam_User      []string `json:"iam_user"`
+	Os_User       []string `json:"os_user"`
+	SimpleAD_User []string `json:"simplead_user"`
+	MsAD_User     []string `json:"ms_ad_user"`
+}
 
 func main() {
 	// Ginの設定
@@ -166,8 +173,32 @@ func main() {
 		panic(err)
 	}
 
-	router.GET("/", func(c *gin.Context) {
-		wg.Add(3)
+	router.Use(AllowAllCORS())
+
+	// router.GET("/", func(c *gin.Context) {
+	router.POST("/", func(c *gin.Context) {
+		// c.Writer.Header().Set("Access-Control-Allow-Origin", "*")                                                                                                                            // すべてのオリジンを許可(CORS対策)
+		// c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")                                                                                                     // 許可するHTTPメソッド
+		// c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With") // 許可するHTTPヘッダー
+
+		// if c.Request.Method == "OPTIONS" {
+		// 	c.AbortWithStatus(http.StatusNoContent)
+		// 	return
+		// }
+
+		// var user_type_count int // wg.Add()でいくつのgoroutineを作成するかを指定するために必要
+		var request UserExistCheck
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		fmt.Println("request:", request)
+		fmt.Println("request.Db_User:", request.Db_User)
+		fmt.Println("request.Iam_User:", request.Iam_User)
+		fmt.Println("request.Os_User:", request.Os_User)
+		fmt.Println("request.SimpleAD_User:", request.SimpleAD_User)
+		fmt.Println("request.MsAD_User:", request.MsAD_User)
 
 		tr := otel.Tracer("User-Exist-Check")
 		ctx := c.Request.Context() // トレースのルートとなるコンテキストを生成
@@ -200,15 +231,36 @@ func main() {
 		no_exist_db_user := []string{}
 		no_exist_iam_user := []string{}
 		no_exist_os_user := []string{}
+		no_exist_simplead_user := []string{}
+		no_exist_msad_user := []string{}
 
-		db_users := []string{"dbuser1", "dbuser2", "dbuser4", "dbuser5", "dbuser7"}
-		go DbuserExistCheck(ctx, &no_exist_db_user, db_users...)
+		// db_users := []string{"dbuser1", "dbuser2", "dbuser4", "dbuser5", "dbuser7"}
+		if len(request.Db_User) != 0 {
+			wg.Add(1)
+			go DbuserExistCheck(ctx, &no_exist_db_user, request.Db_User...)
+		}
 
-		iam_users := []string{"minorun365", "lee-testuser-for-iam", "iamuser3", "iamuser4", "iamuser5"}
-		go AwsIamUserExistCheck(ctx, &no_exist_iam_user, cfg, iam_users...)
+		// iam_users := []string{"minorun365", "lee-testuser-for-iam", "iamuser3", "iamuser4", "iamuser5"}
+		if len(request.Iam_User) != 0 {
+			wg.Add(1)
+			go AwsIamUserExistCheck(ctx, &no_exist_iam_user, cfg, request.Iam_User...)
+		}
 
-		os_users := []string{"T232323", "Z121212", "Z343434", "M565656", "M090909", "M101010", "K232323"}
-		go OsUserExistCheck(ctx, &no_exist_os_user, cfg, os_users...)
+		// os_users := []string{"T232323", "Z121212", "Z343434", "M565656", "M090909", "M101010", "K232323"}
+		if len(request.Os_User) != 0 {
+			wg.Add(1)
+			go OsUserExistCheck(ctx, &no_exist_os_user, cfg, request.Os_User...)
+		}
+
+		if len(request.SimpleAD_User) != 0 {
+			wg.Add(1)
+			go SimpleAdUserExistCheck(ctx, &no_exist_simplead_user, request.SimpleAD_User...)
+		}
+
+		if len(request.MsAD_User) != 0 {
+			wg.Add(1)
+			go MsAdUserExistCheck(ctx, &no_exist_msad_user, request.MsAD_User...)
+		}
 
 		wg.Wait() // wait until all goroutines are finished (including goroutines that are not created in this main function)
 
@@ -357,17 +409,6 @@ func OsUserExistCheck(ctx context.Context, no_exist_os_user *[]string, cfg aws.C
 		panic(err)
 	}
 
-	// // ディレクトリの内容を読み込む
-	// files, err := os.ReadDir(".")
-	// if err != nil {
-	// 	fmt.Printf("Failed to read directory: %v\n", err)
-	// }
-	// // ファイルとディレクトリの名前を表示
-	// for _, file := range files {
-	// 	fmt.Println(file.Name())
-	// }
-
-	// data := make([]byte, 1024) // 1024byteのスライスを作成. 1024byteより大きいデータがある場合は動的に拡張される
 	f, err := os.Open("userlist")
 	if err != nil {
 		fmt.Println("failed to open file")
@@ -400,6 +441,31 @@ func OsUserExistCheck(ctx context.Context, no_exist_os_user *[]string, cfg aws.C
 
 	// fmt.Printf("read %d bytes\n", count)
 	// fmt.Println("Data: ", string(data[:count]))
+}
+
+func SimpleAdUserExistCheck(ctx context.Context, no_exist_simplead_user *[]string, simplead_user ...string) {
+	defer wg.Done()
+	*no_exist_simplead_user = append(*no_exist_simplead_user, "simplead_user1")
+}
+
+func MsAdUserExistCheck(ctx context.Context, no_exist_msad_user *[]string, msad_user ...string) {
+	defer wg.Done()
+	*no_exist_msad_user = append(*no_exist_msad_user, "msad_user1")
+}
+
+func AllowAllCORS() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")                                                                                                                            // すべてのオリジンを許可
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")                                                                                             // 許可するHTTPメソッド
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With") // 許可するHTTPヘッダー
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
 }
 
 // func TracingMiddleware() (gin.HandlerFunc, context.Context) {

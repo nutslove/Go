@@ -17,6 +17,15 @@ body {
 	text-align: center;
 }
 
+h1 {
+	margin-bottom: 20px;
+}
+
+p {
+	margin-bottom: 20px;
+	color: #666;
+}
+
 h2 {
 	color: #333;
 	margin-bottom: 20px;
@@ -42,7 +51,7 @@ h2 {
 }
 
 button {
-	width: 100%;
+	width: 25%;
 	padding: 10px;
 	border: none;
 	border-radius: 4px;
@@ -50,6 +59,10 @@ button {
 	color: white;
 	cursor: pointer;
 	font-size: 16px;
+}
+
+div {
+	margin-bottom: 15px;
 }
 
 button:hover {
