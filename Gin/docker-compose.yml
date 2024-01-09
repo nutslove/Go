@@ -26,18 +26,18 @@ services:
       - jaeger
       - postgres
       - redis
-  user-exist-check:
-    image: user-exist-check:latest
-    ports:
-      - 8000:8000
-    environment:
-      - POSTGRES_USER
-      - POSTGRES_PASSWORD
-      - POSTGRES_DB
-      - AWS_ACCESS_KEY_ID
-      - AWS_SECRET_ACCESS_KEY
-    depends_on: # wait for postgres to be ready before starting
-      - postgres
+  # user-exist-check:
+  #   image: user-exist-check:latest
+  #   ports:
+  #     - 8000:8000
+  #   environment:
+  #     - POSTGRES_USER
+  #     - POSTGRES_PASSWORD
+  #     - POSTGRES_DB
+  #     - AWS_ACCESS_KEY_ID
+  #     - AWS_SECRET_ACCESS_KEY
+  #   depends_on: # wait for postgres to be ready before starting
+  #     - postgres
   postgres:
     image: postgres:16.1-alpine
     ports:
