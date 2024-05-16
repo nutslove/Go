@@ -13,6 +13,8 @@ RUN go mod download
 COPY *.go ./
 COPY ./templates ./templates
 COPY ./static ./static
+# COPY ./middlewares ./middlewares
+# COPY ./routers ./routers
 
 RUN go build -o /web_server
 

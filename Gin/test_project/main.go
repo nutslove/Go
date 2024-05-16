@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,17 +9,17 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
+	_ "github.com/gin-contrib/sessions/redis"
 	"github.com/gin-gonic/gin"
 	csrf "github.com/utrack/gin-csrf"
-
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	_ "go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -83,19 +82,22 @@ func main() {
 	router.LoadHTMLGlob("templates/*") // テンプレートファイルの読み込み
 
 	// Cookieベースのセッションを設定
-	secretKey := os.Getenv("SESSION_SECRET_KEY") // Sessionの暗号化キーは固定の値を使用することで、アプリの再起動時にセッションが維持されるようにする
-	if secretKey == "" {
-		fmt.Println("SESSION_SECRET_KEY環境変数が設定されていません")
-		return
-	}
+	secretKey := "mysecretsessionkey"
+	// secretKey := os.Getenv("SESSION_SECRET_KEY") // Sessionの暗号化キーは固定の値を使用することで、アプリの再起動時にセッションが維持されるようにする
+	// if secretKey == "" {
+	// 	fmt.Println("SESSION_SECRET_KEY環境変数が設定されていません")
+	// 	return
+	// }
 
 	store := cookie.NewStore([]byte(secretKey))
 	router.Use(sessions.Sessions("session", store)) // ブラウザのCookieにセッションIDを保存する
 
+	secretKey_for_csrf := "testkey"
+
 	// CSRFミドルウェアの設定
 	// HTML内の_csrfの値を取得して、リクエストトークンと比較を行い、一致しない場合ErrorFuncを実行する（https://github.com/utrack/gin-csrf/blob/master/csrf.go）
 	router.Use(csrf.Middleware(csrf.Options{
-		Secret: secretKey, // 上のCookieベースのセッションと同じ値を指定
+		Secret: secretKey_for_csrf, // CSRFトークンの生成に使用される秘密鍵
 		ErrorFunc: func(c *gin.Context) {
 			c.String(400, "CSRF token mismatch")
 			c.Abort()
