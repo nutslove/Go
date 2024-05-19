@@ -22,6 +22,7 @@ services:
       - POSTGRES_USER
       - POSTGRES_PASSWORD
       - POSTGRES_DB
+    privileged: true
     depends_on: # wait for postgres and jaeger and redis to be ready before starting
       - jaeger
       - postgres
