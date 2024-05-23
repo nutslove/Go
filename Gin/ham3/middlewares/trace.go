@@ -1,19 +1,26 @@
 package middlewares
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
-func TracingMiddleware() gin.HandlerFunc {
+func TracerSetting(serviceName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tr := otel.Tracer("ham3")
-		ctx := c.Request.Context()                     // トレースのルートとなるコンテキストを生成
-		ctx, span := tr.Start(ctx, c.Request.URL.Path) // トレースの開始 (スパンの開始)
-		defer span.End()                               // トレースの終了
+		tr := otel.Tracer(serviceName) // spanのotel.library.name semantic conventionsに入る値
+		ctx := c.Request.Context()     // 現在のリクエストに関連付けられたcontextを取得する
+		method := c.Request.Method
+		urlPath := c.Request.URL.Path
+		ctx, span := tr.Start(ctx, fmt.Sprintf("%s %s", method, urlPath), trace.WithAttributes(
+			attribute.String("service.name", serviceName),
+		)) // (新しい)spanの開始
+		defer span.End() // spanの終了
 
-		c.Request = c.Request.WithContext(ctx) // コンテキストを更新
+		c.Request = c.Request.WithContext(ctx) // 現在のHTTPリクエストに新しいコンテキストを設定する（つまり、新しい子コンテキストを作成）
 		c.Next()                               // 次のミドルウェアを呼び出し // ここでgin.Contextが更新される // この後の処理はgin.Contextの値を参照することができる
 
 		// HTTPステータスコードが400以上の場合、エラーとしてマーク
