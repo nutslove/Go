@@ -2,7 +2,6 @@ package routers
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"ham3/middlewares"
@@ -16,8 +15,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -54,22 +51,6 @@ func SetupRouter(r *gin.Engine) {
 		log.Fatalf("Error creating Kubernetes client: %v", err)
 	}
 
-	// Namespaceを作成するマニフェストの定義
-	namespace := &v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "example-namespace",
-		},
-	}
-
-	// NamespaceをKubernetesクラスターに適用
-	_, err = clientset.CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
-	if err != nil {
-		fmt.Printf("Error creating namespace: %v\n", err)
-		// return
-	}
-
-	fmt.Println("Namespace created successfully")
-
 	v1 := r.Group("/api/v1")
 
 	{
@@ -77,20 +58,21 @@ func SetupRouter(r *gin.Engine) {
 		caas := v1.Group("/caas")
 		{
 			caas.Use(middlewares.TracerSetting("CaaS"))
-			caas.POST("/:caas_id", services.CreateCaas)
-			caas.GET("/:caas_id", services.GetCaas)
-			caas.DELETE("/:caas_id", services.DeleteCaas)
-			caas.GET("/", services.GetCaases)
+			caas.POST("/:caas_id", func(c *gin.Context) { services.CreateCaas(c.Request.Context(), c, clientset) })
+			caas.GET("/:caas_id", func(c *gin.Context) { services.GetCaas(c.Request.Context(), c, clientset) })
+			caas.DELETE("/:caas_id", func(c *gin.Context) { services.DeleteCaas(c.Request.Context(), c, clientset) })
+			caas.GET("/", func(c *gin.Context) { services.GetCaases(c.Request.Context(), c, clientset) })
 		}
 
 		// LOGaaS関連ルート
 		logaas := v1.Group("/logaas")
 		{
 			logaas.Use(middlewares.TracerSetting("LOGaaS"))
-			logaas.POST("/:logaas_id", services.CreateLogaas)
-			logaas.GET("/:logaas_id", services.GetLogaas)
-			logaas.DELETE("/:logaas_id", services.DeleteLogaas)
-			logaas.GET("/", services.GetLogaases)
+			logaas.POST("/:logaas_id", func(c *gin.Context) { services.CreateLogaas(c.Request.Context(), c, clientset) })
+			logaas.GET("/:logaas_id", func(c *gin.Context) { services.GetLogaas(c.Request.Context(), c, clientset) })
+			logaas.PUT("/:logaas_id", func(c *gin.Context) { services.UpdateLogaas(c.Request.Context(), c, clientset) })
+			logaas.DELETE("/:logaas_id", func(c *gin.Context) { services.DeleteLogaas(c.Request.Context(), c, clientset) })
+			logaas.GET("/", func(c *gin.Context) { services.GetLogaases(c.Request.Context(), c, clientset) })
 		}
 	}
 

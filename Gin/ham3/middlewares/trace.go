@@ -12,7 +12,7 @@ import (
 func TracerSetting(serviceName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tr := otel.Tracer(serviceName) // spanのotel.library.name semantic conventionsに入る値
-		ctx := c.Request.Context()     // 現在のリクエストに関連付けられたcontextを取得する
+		ctx := c.Request.Context()     // 現在のリクエストに関連付けられたcontextを取得する（traceのルートとなるコンテキストを生成）
 		method := c.Request.Method
 		urlPath := c.Request.URL.Path
 		ctx, span := tr.Start(ctx, fmt.Sprintf("%s %s", method, urlPath), trace.WithAttributes(
