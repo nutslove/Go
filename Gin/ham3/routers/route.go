@@ -3,12 +3,14 @@ package routers
 import (
 	"context"
 	"log"
+	"net/http"
 
 	"ham3/middlewares"
 	"ham3/services"
 	"ham3/utilities"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
@@ -75,6 +77,11 @@ func SetupRouter(r *gin.Engine) {
 			logaas.GET("/", func(c *gin.Context) { services.GetLogaases(c.Request.Context(), c, clientset) })
 		}
 	}
+
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		http.ListenAndServe(":9090", nil)
+	}()
 
 	// indexページ
 	r.GET("/", services.Index)

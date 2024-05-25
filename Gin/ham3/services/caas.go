@@ -15,7 +15,36 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+var (
+	CaasCreateCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "caas_create_total",
+		Help: "The total number of CaaS created",
+	},
+		[]string{"tenant"},
+	)
+)
+
+var (
+	CaasDeleteCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "caas_delete_total",
+		Help: "The total number of CaaS deleted",
+	},
+		[]string{"tenant"},
+	)
+)
+
+func IncreaseCreateCounter(tenant string) {
+	CaasCreateCounter.WithLabelValues(tenant).Inc()
+}
+
+func IncreaseDeleteCounter(tenant string) {
+	CaasDeleteCounter.WithLabelValues(tenant).Inc()
+}
 
 func CreateCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
 	caas_id := c.Param("caas_id")
@@ -174,6 +203,7 @@ func CreateCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 		"status":  "success",
 		"message": fmt.Sprintf("Created CaaS for %s successfully", caas_id),
 	})
+	IncreaseCreateCounter(caas_id)
 }
 
 func GetCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
@@ -330,6 +360,7 @@ func DeleteCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 		"status":  "success",
 		"message": fmt.Sprintf("Deleted CaaS for %s successfully", caas_id),
 	})
+	IncreaseDeleteCounter(caas_id)
 }
 
 func GetCaases(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
