@@ -27,9 +27,7 @@ var (
 	},
 		[]string{"tenant"},
 	)
-)
 
-var (
 	CaasDeleteCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "caas_delete_total",
 		Help: "The total number of CaaS deleted",
@@ -38,11 +36,11 @@ var (
 	)
 )
 
-func IncreaseCreateCounter(tenant string) {
+func IncreaseCaaSCreateCounter(tenant string) {
 	CaasCreateCounter.WithLabelValues(tenant).Inc()
 }
 
-func IncreaseDeleteCounter(tenant string) {
+func IncreaseCaaSDeleteCounter(tenant string) {
 	CaasDeleteCounter.WithLabelValues(tenant).Inc()
 }
 
@@ -203,7 +201,7 @@ func CreateCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 		"status":  "success",
 		"message": fmt.Sprintf("Created CaaS for %s successfully", caas_id),
 	})
-	IncreaseCreateCounter(caas_id)
+	IncreaseCaaSCreateCounter(caas_id)
 }
 
 func GetCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
@@ -360,7 +358,7 @@ func DeleteCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 		"status":  "success",
 		"message": fmt.Sprintf("Deleted CaaS for %s successfully", caas_id),
 	})
-	IncreaseDeleteCounter(caas_id)
+	IncreaseCaaSDeleteCounter(caas_id)
 }
 
 func GetCaases(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
