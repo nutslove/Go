@@ -1,10 +1,10 @@
 package utilities
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	_ "time"
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -72,8 +72,7 @@ func OpenSearchHelmSetting(releaseName string, actionType string) (*action.Insta
 	// Helm設定の初期化
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), "opensearch", "secret", func(format string, v ...interface{}) {
-		message := fmt.Sprintf(format, v...)
-		fmt.Println(message)
+		log.Printf(format, v...)
 	}); err != nil {
 		log.Fatalf("Failed to initialize Helm configuration: %v", err)
 	}
@@ -86,8 +85,8 @@ func OpenSearchHelmSetting(releaseName string, actionType string) (*action.Insta
 		installClient.Namespace = "opensearch"
 		installClient.ReleaseName = releaseName
 		installClient.CreateNamespace = true
-		// installClient.Wait = true
-		// installClient.Timeout = 30 * time.Second
+		// installClient.Wait = true ## k8sリソースがetcdに登録されるだけではなく、実際にrunning状態になるまで待つ。デフォルトはfalseでetcdに登録されるだけでプロンプトを返す
+		// installClient.Timeout = 30 * time.Second ## Waitをtrueにした場合、どれくらい待つかを設定
 		uninstallClient = nil
 	} else if actionType == "uninstall" {
 		uninstallClient = action.NewUninstall(actionConfig)
