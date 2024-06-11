@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"ham3/utilities"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
@@ -78,11 +77,11 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	}
 
 	// タイムアウトを10分に設定
-	ctxtimeout, cancel := context.WithTimeout(ctx, 600*time.Second)
-	defer cancel()
+	// ctxtimeout, cancel := context.WithTimeout(ctx, 600*time.Second)
+	// defer cancel()
 
-	release, err := install.RunWithContext(ctxtimeout, chart, values)
-	// release, err := install.Run(chart, values)
+	// release, err := install.RunWithContext(ctxtimeout, chart, values)
+	release, err := install.Run(chart, values)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
