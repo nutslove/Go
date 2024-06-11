@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"ham3/utilities"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
@@ -46,14 +48,49 @@ type RequestData struct {
 }
 
 func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
-	logaas_id := c.Param("logaas_id")
-
 	var requestData RequestData
 	if err := c.ShouldBindJSON(&requestData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	logaas_id := c.Param("logaas_id")
+
 	fmt.Printf("ClusterName: %s, ClusterType: %s\n", logaas_id, requestData.ClusterType)
+
+	// Helmの設定
+	install, _, chart := utilities.OpenSearchHelmSetting(logaas_id, "install")
+
+	values := map[string]interface{}{
+		"replicas": 3,
+		"resources": map[string]interface{}{
+			"limits": map[string]interface{}{
+				"cpu":    "1",
+				"memory": "250Mi",
+			},
+		},
+		"extraEnvs": []map[string]interface{}{
+			{
+				"name":  "OPENSEARCH_INITIAL_ADMIN_PASSWORD",
+				"value": "Watchuserstep#3",
+			},
+		},
+		"nameOverride": install.ReleaseName,
+	}
+
+	// タイムアウトを10分に設定
+	ctxtimeout, cancel := context.WithTimeout(ctx, 600*time.Second)
+	defer cancel()
+
+	release, err := install.RunWithContext(ctxtimeout, chart, values)
+	// release, err := install.Run(chart, values)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": fmt.Sprintf("Failed to install chart: %v", err),
+		})
+		return
+	}
+	fmt.Printf("Successfully installed chart with release name: %s\n", release.Name)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
@@ -94,14 +131,27 @@ func UpdateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 }
 
 func DeleteLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
-	logaas_id := c.Param("logaas_id")
-
 	var requestData RequestData
 	if err := c.ShouldBindJSON(&requestData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	logaas_id := c.Param("logaas_id")
+
 	fmt.Printf("ClusterName: %s, ClusterType: %s\n", logaas_id, requestData.ClusterType)
+
+	// Helmの設定
+	_, uninstall, _ := utilities.OpenSearchHelmSetting(logaas_id, "uninstall")
+
+	_, err := uninstall.Run(logaas_id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": fmt.Sprintf("Failed to uninstall chart: %v", err),
+		})
+		return
+	}
+	fmt.Printf("Successfully uninstalled chart with release name: %s\n", logaas_id)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("Delete LOGaaS for %s successfully", logaas_id),
