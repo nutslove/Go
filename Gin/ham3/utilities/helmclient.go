@@ -24,7 +24,7 @@ var (
 func OpenSearchHelmSetting(releaseName string, actionType string) (*action.Install, *action.Uninstall, *chart.Chart) {
 	// Helm CLI設定の取得
 	settings := cli.New()
-	// settings.Debug = true
+	settings.Debug = true
 
 	// Namespaceを設定
 	settings.SetNamespace("opensearch")
