@@ -88,7 +88,7 @@ func OpenSearchHelmSetting(releaseName string, actionType string) (*action.Insta
 		installClient.ReleaseName = releaseName
 		installClient.CreateNamespace = true
 		installClient.Wait = true
-		installClient.Timeout = 900 * time.Second
+		installClient.Timeout = 30 * time.Second
 		uninstallClient = nil
 	} else if actionType == "uninstall" {
 		uninstallClient = action.NewUninstall(actionConfig)
