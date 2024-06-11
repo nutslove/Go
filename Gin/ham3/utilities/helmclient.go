@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"time"
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -87,8 +86,8 @@ func OpenSearchHelmSetting(releaseName string, actionType string) (*action.Insta
 		installClient.Namespace = "opensearch"
 		installClient.ReleaseName = releaseName
 		installClient.CreateNamespace = true
-		installClient.Wait = true
-		installClient.Timeout = 30 * time.Second
+		// installClient.Wait = true
+		// installClient.Timeout = 30 * time.Second
 		uninstallClient = nil
 	} else if actionType == "uninstall" {
 		uninstallClient = action.NewUninstall(actionConfig)
