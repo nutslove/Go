@@ -75,7 +75,7 @@ func CreateCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 	} else {
 		fmt.Printf("Namespace already exists: %v\n", ns)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("%s namespace already exists", caas_id),
 		})
 		span.End()
@@ -107,7 +107,7 @@ func CreateCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 	if err != nil {
 		fmt.Printf("Error creating resourcequota: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error creating resourcequota for %s\n Error messages: %s", caas_id, err),
 		})
 		span2.End()
@@ -149,7 +149,7 @@ func CreateCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 	if err != nil {
 		fmt.Printf("Error creating limitrange: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error creating limitrange for %s\n Error messages: %s", caas_id, err),
 		})
 		span3.End()
@@ -188,7 +188,7 @@ func CreateCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 	if err != nil {
 		fmt.Printf("Error creating rolebinding: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error creating rolebinding for %s\n Error messages: %s", caas_id, err),
 		})
 		span4.End()
@@ -216,7 +216,7 @@ func GetCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientse
 	if err != nil {
 		fmt.Printf("Error getting namespace: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error getting namespace for %s\n Error messages: %s", caas_id, err),
 		})
 		span.End()
@@ -232,7 +232,7 @@ func GetCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientse
 	if err != nil {
 		fmt.Printf("Error getting resourcequota: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error getting resourcequota for %s\n Error messages: %s", caas_id, err),
 		})
 		span2.End()
@@ -248,7 +248,7 @@ func GetCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientse
 	if err != nil {
 		fmt.Printf("Error getting limitrange: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error getting limitrange for %s\n Error messages: %s", caas_id, err),
 		})
 		span3.End()
@@ -264,7 +264,7 @@ func GetCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientse
 	if err != nil {
 		fmt.Printf("Error getting rolebinding: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error getting rolebinding for %s\n Error messages: %s", caas_id, err),
 		})
 		span4.End()
@@ -297,7 +297,7 @@ func DeleteCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 	if err != nil {
 		fmt.Printf("Error deleting resourcequota: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error deleting resourcequota for %s\n Error messages: %s", caas_id, err),
 		})
 		span.End()
@@ -313,7 +313,7 @@ func DeleteCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 	if err != nil {
 		fmt.Printf("Error deleting limitrange: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error deleting limitrange for %s\n Error messages: %s", caas_id, err),
 		})
 		span2.End()
@@ -329,7 +329,7 @@ func DeleteCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 	if err != nil {
 		fmt.Printf("Error deleting rolebinding: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error deleting rolebinding for %s\n Error messages: %s", caas_id, err),
 		})
 		span3.End()
@@ -345,7 +345,7 @@ func DeleteCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 	if err != nil {
 		fmt.Printf("Error deleting namespace: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "failed",
+			"status":  "error",
 			"message": fmt.Sprintf("Error deleting namespace for %s\n Error messages: %s", caas_id, err),
 		})
 		span4.End()
