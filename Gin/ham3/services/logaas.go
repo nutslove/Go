@@ -43,7 +43,10 @@ func IncreaseLOGaaSDeleteCounter(clusterName, clusterType string) {
 }
 
 type RequestData struct {
-	ClusterType string `json:"cluster-type"`
+	ClusterType                 string `json:"cluster-type"`
+	OpenSearchVersion           string `json:"opensearch-version"`
+	OpenSearchDashboardsVersion string `json:"opensearch-dashboards-version"`
+	BaseDomain                  string `json:"base-domain"`
 }
 
 func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
@@ -54,15 +57,70 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	}
 	logaas_id := c.Param("logaas_id")
 
+	// パラメータのバリデーションチェック
+	if errExist, errMessage := utilities.CheckLogaasCreateParameters(requestData); errExist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": errMessage})
+		return
+	}
+
 	fmt.Printf("ClusterName: %s, ClusterType: %s\n", logaas_id, requestData.ClusterType)
+
+	// デフォルト値の設定
+	if requestData.OpenSearchVersion == "" {
+		requestData.OpenSearchVersion = "2.9.0"
+	}
+	if requestData.OpenSearchDashboardsVersion == "" {
+		requestData.OpenSearchDashboardsVersion = "2.9.0"
+	}
+
+	RbacCreate := true
+	ServiceAccountName := fmt.Sprintf("%s-client", logaas_id)
+	// OpenSearch 1.1.0の場合はRbacを作成せず、既存のServiceAccount(es)を利用する
+	if requestData.OpenSearchVersion == "1.1.0" {
+		RbacCreate = false
+		ServiceAccountName = "es"
+	}
 
 	// Helmの設定
 	install, _, chart := utilities.OpenSearchHelmSetting(logaas_id, "install")
 
 	values := map[string]interface{}{
-		"replicas": 3,
+		"clusterName": logaas_id,
+		"nodeGroup":   "client",
+		"roles": []string{
+			"ingest",
+		},
+		"masterService": fmt.Sprintf("%s-master", logaas_id),
+		"replicas":      2,
+		"rbac": map[string]interface{}{
+			"create":             RbacCreate,
+			"serviceAccountName": ServiceAccountName,
+		},
+		"persistence": map[string]interface{}{
+			"enabled":         false,
+			"enableInitChown": false,
+		},
+		"podSecurityContext": map[string]interface{}{
+			"runAsUser": 1000,
+		},
+		"ingress": map[string]interface{}{
+			"ingressClassName": "openshift-default",
+			"enabled":          true,
+			"annotations": map[string]interface{}{
+				"route.openshift.io/termination": "edge",
+			},
+			"hosts": []string{
+				fmt.Sprintf("%s-api.es.%s", logaas_id, requestData.BaseDomain),
+			},
+		},
+		// 値要修正
+		"opensearchJavaOpts": fmt.Sprintf("-Xms%s -Xmx%s -XX:MaxMetaspaceSize=%s -Dhttp.proxyHost=%s -Dhttp.proxyPort=%s -Dhttps.proxyHost=%s -Dhttps.proxyPort=%s", "1g", "1g", "256m", "proxy.example.com", "8080", "proxy.example.com", "8080"),
 		"resources": map[string]interface{}{
 			"limits": map[string]interface{}{
+				"cpu":    "1",
+				"memory": "250Mi",
+			},
+			"requests": map[string]interface{}{
 				"cpu":    "1",
 				"memory": "250Mi",
 			},

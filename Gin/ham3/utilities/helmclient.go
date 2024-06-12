@@ -85,7 +85,7 @@ func OpenSearchHelmSetting(releaseName string, actionType string) (*action.Insta
 		installClient.Namespace = "opensearch"
 		installClient.ReleaseName = releaseName
 		installClient.CreateNamespace = true
-		// installClient.Wait = true ## k8sリソースがetcdに登録されるだけではなく、実際にrunning状態になるまで待つ。デフォルトはfalseでetcdに登録されるだけでプロンプトを返す
+		// installClient.Wait = true ## k8sリソースがetcdに登録されるだけではなく、実際にrunning状態になるまで待つ。デフォルトはfalseでetcdに登録されたらプロンプトを返す
 		// installClient.Timeout = 30 * time.Second ## Waitをtrueにした場合、どれくらい待つかを設定
 		uninstallClient = nil
 	} else if actionType == "uninstall" {
@@ -109,3 +109,7 @@ func OpenSearchHelmSetting(releaseName string, actionType string) (*action.Insta
 
 	return installClient, uninstallClient, chart
 }
+
+// func ValuesSetting() {
+
+// }
