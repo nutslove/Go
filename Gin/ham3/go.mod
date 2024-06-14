@@ -11,6 +11,8 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.26.0
 	go.opentelemetry.io/otel/sdk v1.26.0
 	go.opentelemetry.io/otel/trace v1.26.0
+	gorm.io/driver/sqlite v1.5.6
+	gorm.io/gorm v1.25.10
 	helm.sh/helm/v3 v3.15.1
 	k8s.io/api v0.30.1
 	k8s.io/apimachinery v0.30.1
@@ -84,6 +86,8 @@ require (
 	github.com/huandu/xstrings v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/jmoiron/sqlx v1.3.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -98,6 +102,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect

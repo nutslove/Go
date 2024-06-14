@@ -3,12 +3,14 @@ package services
 import (
 	"context"
 	"fmt"
+	"ham3/config"
 	"ham3/utilities"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -42,15 +44,8 @@ func IncreaseLOGaaSDeleteCounter(clusterName, clusterType string) {
 	LOGaasDeleteCounter.WithLabelValues(clusterName, clusterType).Inc()
 }
 
-type RequestData struct {
-	ClusterType                 string `json:"cluster-type"`
-	OpenSearchVersion           string `json:"opensearch-version"`
-	OpenSearchDashboardsVersion string `json:"opensearch-dashboards-version"`
-	BaseDomain                  string `json:"base-domain"`
-}
-
-func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
-	var requestData RequestData
+func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
+	var requestData config.RequestData
 	if err := c.ShouldBindJSON(&requestData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -156,10 +151,10 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	IncreaseLOGaaSCreateCounter(logaas_id, requestData.ClusterType)
 }
 
-func GetLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
+func GetLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
 	logaas_id := c.Param("logaas_id")
 
-	var requestData RequestData
+	var requestData config.RequestData
 	if err := c.ShouldBindJSON(&requestData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -172,10 +167,10 @@ func GetLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Client
 	})
 }
 
-func UpdateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
+func UpdateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
 	logaas_id := c.Param("logaas_id")
 
-	var requestData RequestData
+	var requestData config.RequestData
 	if err := c.ShouldBindJSON(&requestData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -187,8 +182,8 @@ func UpdateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	})
 }
 
-func DeleteLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
-	var requestData RequestData
+func DeleteLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
+	var requestData config.RequestData
 	if err := c.ShouldBindJSON(&requestData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -216,7 +211,7 @@ func DeleteLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	IncreaseLOGaaSDeleteCounter(logaas_id, requestData.ClusterType)
 }
 
-func GetLogaases(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
+func GetLogaases(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Get logaases",
 	})

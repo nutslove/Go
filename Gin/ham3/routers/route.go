@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"ham3/middlewares"
+	"ham3/models"
 	"ham3/services"
 	"ham3/utilities"
 
@@ -53,6 +54,9 @@ func SetupRouter(r *gin.Engine) {
 		log.Fatalf("Error creating Kubernetes client: %v", err)
 	}
 
+	// DB接続
+	db := models.ConnectDb()
+
 	v1 := r.Group("/api/v1")
 
 	{
@@ -60,21 +64,21 @@ func SetupRouter(r *gin.Engine) {
 		caas := v1.Group("/caas")
 		{
 			caas.Use(middlewares.TracerSetting("CaaS"))
-			caas.POST("/:caas_id", func(c *gin.Context) { services.CreateCaas(c.Request.Context(), c, clientset) })
-			caas.GET("/:caas_id", func(c *gin.Context) { services.GetCaas(c.Request.Context(), c, clientset) })
-			caas.DELETE("/:caas_id", func(c *gin.Context) { services.DeleteCaas(c.Request.Context(), c, clientset) })
-			caas.GET("/", func(c *gin.Context) { services.GetCaases(c.Request.Context(), c, clientset) })
+			caas.POST("/:caas_id", func(c *gin.Context) { services.CreateCaas(c.Request.Context(), c, clientset, db) })
+			caas.GET("/:caas_id", func(c *gin.Context) { services.GetCaas(c.Request.Context(), c, clientset, db) })
+			caas.DELETE("/:caas_id", func(c *gin.Context) { services.DeleteCaas(c.Request.Context(), c, clientset, db) })
+			caas.GET("/", func(c *gin.Context) { services.GetCaases(c.Request.Context(), c, clientset, db) })
 		}
 
 		// LOGaaS関連ルート
 		logaas := v1.Group("/logaas")
 		{
 			logaas.Use(middlewares.TracerSetting("LOGaaS"))
-			logaas.POST("/:logaas_id", func(c *gin.Context) { services.CreateLogaas(c.Request.Context(), c, clientset) })
-			logaas.GET("/:logaas_id", func(c *gin.Context) { services.GetLogaas(c.Request.Context(), c, clientset) })
-			logaas.PUT("/:logaas_id", func(c *gin.Context) { services.UpdateLogaas(c.Request.Context(), c, clientset) })
-			logaas.DELETE("/:logaas_id", func(c *gin.Context) { services.DeleteLogaas(c.Request.Context(), c, clientset) })
-			logaas.GET("/", func(c *gin.Context) { services.GetLogaases(c.Request.Context(), c, clientset) })
+			logaas.POST("/:logaas_id", func(c *gin.Context) { services.CreateLogaas(c.Request.Context(), c, clientset, db) })
+			logaas.GET("/:logaas_id", func(c *gin.Context) { services.GetLogaas(c.Request.Context(), c, clientset, db) })
+			logaas.PUT("/:logaas_id", func(c *gin.Context) { services.UpdateLogaas(c.Request.Context(), c, clientset, db) })
+			logaas.DELETE("/:logaas_id", func(c *gin.Context) { services.DeleteLogaas(c.Request.Context(), c, clientset, db) })
+			logaas.GET("/", func(c *gin.Context) { services.GetLogaases(c.Request.Context(), c, clientset, db) })
 		}
 	}
 

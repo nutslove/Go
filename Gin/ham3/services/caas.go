@@ -18,6 +18,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"gorm.io/gorm"
 )
 
 var (
@@ -44,7 +45,7 @@ func IncreaseCaaSDeleteCounter(tenant string) {
 	CaasDeleteCounter.WithLabelValues(tenant).Inc()
 }
 
-func CreateCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
+func CreateCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
 	caas_id := c.Param("caas_id")
 
 	// Tracerの設定
@@ -204,7 +205,7 @@ func CreateCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 	IncreaseCaaSCreateCounter(caas_id)
 }
 
-func GetCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
+func GetCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
 	caas_id := c.Param("caas_id")
 
 	// Traceの設定
@@ -284,7 +285,7 @@ func GetCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientse
 	})
 }
 
-func DeleteCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
+func DeleteCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
 	caas_id := c.Param("caas_id")
 
 	// Traceの設定
@@ -361,7 +362,7 @@ func DeleteCaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clien
 	IncreaseCaaSDeleteCounter(caas_id)
 }
 
-func GetCaases(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset) {
+func GetCaases(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Get caases",
 	})

@@ -1,10 +1,10 @@
 package utilities
 
 import (
-	"ham3/services"
+	"ham3/config"
 )
 
-func CheckLogaasCreateParameters(requestData services.RequestData) (bool, string) {
+func CheckLogaasCreateParameters(requestData config.RequestData) (bool, string) {
 
 	var errExist bool
 	var errMessage string
