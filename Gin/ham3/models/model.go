@@ -12,7 +12,7 @@ type Projects struct {
 
 type LOGaaS struct {
 	gorm.Model
-	ProjectId   string `gorm:"not null;index;foreignKey:ProjectId;references:Projects.ProjectId;constraint:OnDelete:SET NULL;column:project_id"`
+	ProjectId   string `gorm:"not null;index;foreignKey:ProjectId;references:Projects.ProjectId;constraint:OnDelete:RESTRICT;column:project_id"`
 	ClusterName string `gorm:"not null;column:cluster_name;unique"`
 	ClusterType string `gorm:"not null;column:cluster_type"`
 	GuiEndpoint string `gorm:"not null;column:gui_endpoint"`
@@ -22,14 +22,14 @@ type LOGaaS struct {
 
 type CaaS struct {
 	gorm.Model
-	ProjectId string `gorm:"not null;index;foreignKey:ProjectId;references:Projects.ProjectId;constraint:OnDelete:SET NULL;column:project_id"`
+	ProjectId string `gorm:"not null;index;foreignKey:ProjectId;references:Projects.ProjectId;constraint:OnDelete:RESTRICT;column:project_id"`
 	Namespace string `grom:"not null;column:namespace"`
 	Status    string `gorm:"not null;column:status"`
 }
 
 type AAPaaS struct {
 	gorm.Model
-	ProjectId string `gorm:"not null;index;foreignKey:ProjectId;references:Projects.ProjectId;constraint:OnDelete:SET NULL;column:project_id"`
+	ProjectId string `gorm:"not null;index;foreignKey:ProjectId;references:Projects.ProjectId;constraint:OnDelete:RESTRICT;column:project_id"`
 	Status    string `gorm:"not null;column:status"`
 }
 
