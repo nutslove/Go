@@ -4,7 +4,7 @@ import (
 	"ham3/config"
 )
 
-func CheckLogaasCreateParameters(requestData config.RequestData) (bool, string) {
+func CheckLogaasCreateParameters(requestData config.LogaasRequestData) (bool, string) {
 	var errExist bool
 	var errMessage string
 	if requestData.ClusterType == "" {
