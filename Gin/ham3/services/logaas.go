@@ -66,13 +66,13 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	fmt.Printf("ClusterName: %s, Cluster Metadata: %s\n", logaas_id, requestData)
 
 	meta := config.Flavors
-	m1_tiny := config.Flavors["m1.tiny"]
-	request := config.Flavors["requests"]
-	cpu := config.Flavors["cpu"]
+	request := config.Flavors["m1.tiny"].(map[string]interface{})["requests"].(map[string]interface{})
+	request_cpu := request["cpu"]
+	request_memory := config.Flavors["memory"]
 	fmt.Println("meta:", meta)
-	fmt.Println("m1.tiny:", m1_tiny)
 	fmt.Println("request:", request)
-	fmt.Println("cpu:", cpu)
+	fmt.Println("request_cpu:", request_cpu)
+	fmt.Println("request_memory:", request_memory)
 
 	// RbacCreate := true
 	// ServiceAccountName := fmt.Sprintf("%s-client", logaas_id)
