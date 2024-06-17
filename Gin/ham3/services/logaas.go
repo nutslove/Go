@@ -36,6 +36,21 @@ var (
 	)
 )
 
+type MetaData struct {
+	Flavor struct {
+		Requests struct {
+			Cpu    string `yaml:"cpu"`
+			Memory string `yaml:"memory"`
+		}
+		Limits struct {
+			Cpu    string `yaml:"cpu"`
+			Memory string `yaml:"memory"`
+		}
+		JvmHeap string
+		JvmPerm string
+	}
+}
+
 func IncreaseLOGaaSCreateCounter(clusterName, clusterType string) {
 	LOGaasCreateCounter.WithLabelValues(clusterName, clusterType).Inc()
 }
@@ -64,6 +79,9 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	}
 
 	fmt.Printf("ClusterName: %s, Cluster Metadata: %s\n", logaas_id, requestData)
+
+	meta := MetaData{}
+	fmt.Println("meta:", meta)
 
 	// RbacCreate := true
 	// ServiceAccountName := fmt.Sprintf("%s-client", logaas_id)

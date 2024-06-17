@@ -5,10 +5,6 @@ import (
 	"os"
 )
 
-var flavor = `
-
-`
-
 func OpenSearchGetDefaultValue(requestData *config.RequestData) {
 	// デフォルト値の設定
 	requestData.OpenSearchVersion = "2.9.0"
