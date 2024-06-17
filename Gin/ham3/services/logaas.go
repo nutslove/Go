@@ -48,8 +48,8 @@ type MetaData struct {
 			Cpu    string `yaml:"cpu"`
 			Memory string `yaml:"memory"`
 		}
-		JvmHeap string
-		JvmPerm string
+		JvmHeap string `yaml:jvm_heap`
+		JvmPerm string `yaml:jvm_perm`
 	}
 }
 
