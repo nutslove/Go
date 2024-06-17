@@ -96,6 +96,9 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	// Helmの設定
 	install, _, chart := utilities.OpenSearchHelmSetting(logaas_id, "install")
 
+	if requestData.ClusterType == "scalable" {
+
+	}
 	values := map[string]interface{}{
 		"clusterName": logaas_id,
 		"nodeGroup":   "client",
@@ -160,6 +163,8 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 		return
 	}
 	fmt.Printf("Successfully installed chart with release name: %s\n", release.Name)
+
+	// OpenSearch Dashboardのデプロイも追加（scalableとstandardの違いはrelicas数のみ）
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
