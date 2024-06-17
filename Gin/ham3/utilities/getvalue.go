@@ -13,7 +13,7 @@ func OpenSearchGetDefaultValue(requestData *config.RequestData) {
 	// デフォルト値の設定
 	requestData.OpenSearchVersion = "2.9.0"
 	requestData.OpenSearchDashboardsVersion = "2.9.0"
-	requestData.ClusterType = "standard"
+	// requestData.ClusterType = "standard"
 	requestData.ScaleSize = 3
 	requestData.BaseDomain = os.Getenv("BASE_DOMAIN")
 	requestData.K8sName = os.Getenv("KUBE_NAME")

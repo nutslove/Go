@@ -5,7 +5,6 @@ import (
 )
 
 func CheckLogaasCreateParameters(requestData config.RequestData) (bool, string) {
-
 	var errExist bool
 	var errMessage string
 	if requestData.ClusterType == "" {
