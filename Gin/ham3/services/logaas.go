@@ -83,7 +83,7 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	fmt.Printf("ClusterName: %s, Cluster Metadata: %s\n", logaas_id, requestData)
 
 	meta := MetaData{}
-	err := yaml.Unmarshal([]byte(config.metadata), &meta)
+	err := yaml.Unmarshal([]byte(config.Metadata), &meta)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}

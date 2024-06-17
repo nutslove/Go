@@ -19,7 +19,7 @@ type RequestData struct {
 	OcpCluster                  string `json:"ocp-cluster"`
 }
 
-var metadata = `
+var Metadata = `
 flavor:
 	m1.tiny:
 		requests:
