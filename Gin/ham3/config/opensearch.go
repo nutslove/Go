@@ -19,18 +19,20 @@ type RequestData struct {
 	OcpCluster                  string `json:"ocp-cluster"`
 }
 
-var Metadata = `
-flavor:
-	m1.tiny:
-		requests:
-			cpu: 125m
-			memory: 640Mi
-		limits:
-			cpu: 500m
-			memory: 1Gi
-		jvm_heap: 512M
-		jvm_perm: 128M
-`
+var Flavors = map[string]interface{}{
+	"m1.tiny": map[string]interface{}{
+		"requests": map[string]interface{}{
+			"cpu":    "125m",
+			"memory": "640Mi",
+		},
+		"limits": map[string]interface{}{
+			"cpu":    "500m",
+			"memory": "1Gi",
+		},
+		"jvm_heap": "512M",
+		"jvm_perm": "128M",
+	},
+}
 
 // 		m1.small:
 // 		requests:

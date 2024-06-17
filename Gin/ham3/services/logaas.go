@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"ham3/config"
 	"ham3/utilities"
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 )
@@ -37,23 +35,6 @@ var (
 		},
 	)
 )
-
-type MetaData struct {
-	Flavors struct {
-		Flavor struct {
-			Requests struct {
-				Cpu    string `yaml:"cpu"`
-				Memory string `yaml:"memory"`
-			}
-			Limits struct {
-				Cpu    string `yaml:"cpu"`
-				Memory string `yaml:"memory"`
-			}
-			JvmHeap string `yaml:jvm_heap`
-			JvmPerm string `yaml:jvm_perm`
-		}
-	}
-}
 
 func IncreaseLOGaaSCreateCounter(clusterName, clusterType string) {
 	LOGaasCreateCounter.WithLabelValues(clusterName, clusterType).Inc()
@@ -84,12 +65,14 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 
 	fmt.Printf("ClusterName: %s, Cluster Metadata: %s\n", logaas_id, requestData)
 
-	meta := MetaData{}
-	err := yaml.Unmarshal([]byte(config.Metadata), &meta)
-	if err != nil {
-		log.Fatalf("error: %v", err)
-	}
+	meta := config.Flavors
+	m1_tiny := config.Flavors["m1.tiny"]
+	request := config.Flavors["m1.tiny"]["requests"]
+	cpu := config.Flavors["m1.tiny"]["requests"]["cpu"]
 	fmt.Println("meta:", meta)
+	fmt.Println("m1.tiny:", m1_tiny)
+	fmt.Println("request:", request)
+	fmt.Println("cpu:", cpu)
 
 	// RbacCreate := true
 	// ServiceAccountName := fmt.Sprintf("%s-client", logaas_id)
