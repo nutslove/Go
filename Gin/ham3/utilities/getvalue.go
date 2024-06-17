@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func OpenSearchGetDefaultValue(requestData *config.RequestData) {
+func LogaasGetDefaultValue(requestData *config.RequestData) {
 	// デフォルト値の設定
 	requestData.OpenSearchVersion = "2.9.0"
 	requestData.OpenSearchDashboardsVersion = "2.9.0"

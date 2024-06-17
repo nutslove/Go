@@ -45,10 +45,10 @@ func IncreaseLOGaaSDeleteCounter(clusterName, clusterType string) {
 }
 
 func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
-	var requestData config.RequestData
+	var requestData config.LogaasRequestData
 
 	// OpenSearchのメタデータ(e.g. cluster type)のデフォルト値を取得
-	utilities.OpenSearchGetDefaultValue(&requestData)
+	utilities.LogaasGetDefaultValue(&requestData)
 
 	// OpenSearchのメタデータを実際のリクエスト値に上書き（リクエストに連携されてないパラメータはデフォルト値で設定される）
 	if err := c.ShouldBindJSON(&requestData); err != nil {
@@ -66,19 +66,24 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	fmt.Printf("ClusterName: %s, Cluster Metadata: %s\n", logaas_id, requestData)
 
 	meta := config.Flavors
-	flavor := config.Flavors["m1.tiny"].(map[string]interface{})
+	flavor := config.Flavors[requestData.MasterFlavor].(map[string]interface{})
 	requests := flavor["requests"].(map[string]interface{})
 	limits := flavor["limits"].(map[string]interface{})
 	requests_cpu := requests["cpu"]
 	requests_memory := requests["memory"]
 	limits_cpu := limits["cpu"]
 	limits_memory := limits["memory"]
+	jvm_heap := flavor["jvm_heap"]
+	jvm_perm := flavor["jvm_perm"]
+	fmt.Println("flavor:", flavor)
 	fmt.Println("meta:", meta)
 	fmt.Println("requests:", requests)
 	fmt.Println("requests_cpu:", requests_cpu)
 	fmt.Println("requests_memory:", requests_memory)
 	fmt.Println("limits_cpu:", limits_cpu)
 	fmt.Println("limits_memory:", limits_memory)
+	fmt.Println("jvm_heap:", jvm_heap)
+	fmt.Println("jvm_perm:", jvm_perm)
 
 	// RbacCreate := true
 	// ServiceAccountName := fmt.Sprintf("%s-client", logaas_id)
@@ -166,7 +171,7 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 func GetLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
 	logaas_id := c.Param("logaas_id")
 
-	var requestData config.RequestData
+	var requestData config.LogaasRequestData
 	if err := c.ShouldBindJSON(&requestData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -182,7 +187,7 @@ func GetLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Client
 func UpdateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
 	logaas_id := c.Param("logaas_id")
 
-	var requestData config.RequestData
+	var requestData config.LogaasRequestData
 	if err := c.ShouldBindJSON(&requestData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -195,7 +200,7 @@ func UpdateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 }
 
 func DeleteLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Clientset, db *gorm.DB) {
-	var requestData config.RequestData
+	var requestData config.LogaasRequestData
 	if err := c.ShouldBindJSON(&requestData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
