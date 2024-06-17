@@ -67,8 +67,8 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 
 	meta := config.Flavors
 	m1_tiny := config.Flavors["m1.tiny"]
-	request := config.Flavors["m1.tiny"]["requests"]
-	cpu := config.Flavors["m1.tiny"]["requests"]["cpu"]
+	request := config.Flavors["requests"]
+	cpu := config.Flavors["cpu"]
 	fmt.Println("meta:", meta)
 	fmt.Println("m1.tiny:", m1_tiny)
 	fmt.Println("request:", request)
