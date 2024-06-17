@@ -66,13 +66,19 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	fmt.Printf("ClusterName: %s, Cluster Metadata: %s\n", logaas_id, requestData)
 
 	meta := config.Flavors
-	request := config.Flavors["m1.tiny"].(map[string]interface{})["requests"].(map[string]interface{})
-	request_cpu := request["cpu"]
-	request_memory := config.Flavors["memory"]
+	flavor := config.Flavors["m1.tiny"].(map[string]interface{})
+	requests := flavor["requests"].(map[string]interface{})
+	limits := flavor["limits"].(map[string]interface{})
+	requests_cpu := requests["cpu"]
+	requests_memory := requests["memory"]
+	limits_cpu := limits["cpu"]
+	limits_memory := limits["memory"]
 	fmt.Println("meta:", meta)
-	fmt.Println("request:", request)
-	fmt.Println("request_cpu:", request_cpu)
-	fmt.Println("request_memory:", request_memory)
+	fmt.Println("requests:", requests)
+	fmt.Println("requests_cpu:", requests_cpu)
+	fmt.Println("requests_memory:", requests_memory)
+	fmt.Println("limits_cpu:", limits_cpu)
+	fmt.Println("limits_memory:", limits_memory)
 
 	// RbacCreate := true
 	// ServiceAccountName := fmt.Sprintf("%s-client", logaas_id)

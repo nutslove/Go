@@ -32,17 +32,20 @@ var Flavors = map[string]interface{}{
 		"jvm_heap": "512M",
 		"jvm_perm": "128M",
 	},
+	"m1.small": map[string]interface{}{
+		"requests": map[string]interface{}{
+			"cpu":    "250m",
+			"memory": "1280Mi",
+		},
+		"limits": map[string]interface{}{
+			"cpu":    "1000m",
+			"memory": "2Gi",
+		},
+		"jvm_heap": "1G",
+		"jvm_perm": "256M",
+	},
 }
 
-// 		m1.small:
-// 		requests:
-// 			cpu: 250m
-// 			memory: 1280Mi
-// 		limits:
-// 			cpu: 1000m
-// 			memory: 2Gi
-// 		jvm_heap: 1G
-// 		jvm_perm: 256M
 // 	m1.medium:
 // 		requests:
 // 			cpu: 500m
