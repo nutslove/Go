@@ -75,8 +75,8 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	limits_memory := limits["memory"]
 	jvm_heap := flavor["jvm_heap"]
 	jvm_perm := flavor["jvm_perm"]
-	fmt.Println("flavor:", flavor)
 	fmt.Println("meta:", meta)
+	fmt.Println("flavor:", flavor)
 	fmt.Println("requests:", requests)
 	fmt.Println("requests_cpu:", requests_cpu)
 	fmt.Println("requests_memory:", requests_memory)
