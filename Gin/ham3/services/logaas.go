@@ -39,17 +39,19 @@ var (
 )
 
 type MetaData struct {
-	Flavor struct {
-		Requests struct {
-			Cpu    string `yaml:"cpu"`
-			Memory string `yaml:"memory"`
+	Flavors struct {
+		Flavor struct {
+			Requests struct {
+				Cpu    string `yaml:"cpu"`
+				Memory string `yaml:"memory"`
+			}
+			Limits struct {
+				Cpu    string `yaml:"cpu"`
+				Memory string `yaml:"memory"`
+			}
+			JvmHeap string `yaml:jvm_heap`
+			JvmPerm string `yaml:jvm_perm`
 		}
-		Limits struct {
-			Cpu    string `yaml:"cpu"`
-			Memory string `yaml:"memory"`
-		}
-		JvmHeap string `yaml:jvm_heap`
-		JvmPerm string `yaml:jvm_perm`
 	}
 }
 
