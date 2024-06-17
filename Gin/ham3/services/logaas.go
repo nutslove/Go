@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"ham3/config"
 	"ham3/utilities"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 	"k8s.io/client-go/kubernetes"
 )
@@ -81,6 +83,10 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	fmt.Printf("ClusterName: %s, Cluster Metadata: %s\n", logaas_id, requestData)
 
 	meta := MetaData{}
+	err := yaml.Unmarshal([]byte(config.metadata), &meta)
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
 	fmt.Println("meta:", meta)
 
 	// RbacCreate := true
