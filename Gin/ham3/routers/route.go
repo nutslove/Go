@@ -58,6 +58,8 @@ func SetupRouter(r *gin.Engine) {
 	db := models.ConnectDb()
 
 	v1 := r.Group("/api/v1")
+
+	// HeaderにTokenが存在するかチェック
 	v1.Use(middlewares.CheckTokenExists())
 
 	{

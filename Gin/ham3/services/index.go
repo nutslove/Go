@@ -9,6 +9,6 @@ import (
 func Index(c *gin.Context) {
 	c.HTML(http.StatusOK, "index.tmpl", gin.H{
 		"title":   "HAM3",
-		"content": "HAM3 provides services for Logging as a Service (LOGaaS) and Container as a Service (CaaS).",
+		"content": "HAM3 provides services for Logging as a Service (LOGaaS) and Container as a Service (CaaS)、AAPaaS (Ansible Automaion Platform as a Service).",
 	})
 }
