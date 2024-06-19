@@ -85,69 +85,18 @@ func CreateLogaas(ctx context.Context, c *gin.Context, clientset *kubernetes.Cli
 	fmt.Println("jvm_heap:", jvm_heap)
 	fmt.Println("jvm_perm:", jvm_perm)
 
-	RbacCreate := true
-	ServiceAccountName := fmt.Sprintf("%s-client", logaas_id)
-	// OpenSearch 1.1.0の場合はRbacを作成せず、既存のServiceAccount(es)を利用する
-	if requestData.OpenSearchVersion == "1.1.0" {
-		RbacCreate = false
-		ServiceAccountName = "es"
+	// Helmのvalues.yamlの設定
+	values, err := utilities.OpensearchGetHelmValue(logaas_id, requestData)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": fmt.Sprintf("Failed to get helm value: %v", err),
+		})
+		return
 	}
 
 	// Helmの設定
 	install, _, chart := utilities.OpenSearchHelmSetting(logaas_id, "install")
-
-	if requestData.ClusterType == "scalable" {
-
-	}
-	values := map[string]interface{}{
-		"clusterName": logaas_id,
-		"nodeGroup":   "client",
-		"roles": []string{
-			"ingest",
-		},
-		"masterService": fmt.Sprintf("%s-master", logaas_id),
-		"replicas":      2,
-		"rbac": map[string]interface{}{
-			"create":             RbacCreate,
-			"serviceAccountName": ServiceAccountName,
-		},
-		"persistence": map[string]interface{}{
-			"enabled":         false,
-			"enableInitChown": false,
-		},
-		"podSecurityContext": map[string]interface{}{
-			"runAsUser": 1000,
-		},
-		"ingress": map[string]interface{}{
-			"ingressClassName": "openshift-default",
-			"enabled":          true,
-			"annotations": map[string]interface{}{
-				"route.openshift.io/termination": "edge",
-			},
-			"hosts": []string{
-				fmt.Sprintf("%s-api.es.%s", logaas_id, requestData.BaseDomain),
-			},
-		},
-		// 値要修正
-		"opensearchJavaOpts": fmt.Sprintf("-Xms%s -Xmx%s -XX:MaxMetaspaceSize=%s -Dhttp.proxyHost=%s -Dhttp.proxyPort=%s -Dhttps.proxyHost=%s -Dhttps.proxyPort=%s", "1g", "1g", "256m", "proxy.example.com", "8080", "proxy.example.com", "8080"),
-		"resources": map[string]interface{}{
-			"limits": map[string]interface{}{
-				"cpu":    "1",
-				"memory": "250Mi",
-			},
-			"requests": map[string]interface{}{
-				"cpu":    "1",
-				"memory": "250Mi",
-			},
-		},
-		"extraEnvs": []map[string]interface{}{
-			{
-				"name":  "OPENSEARCH_INITIAL_ADMIN_PASSWORD",
-				"value": "Watchuserstep#3",
-			},
-		},
-		"nameOverride": install.ReleaseName,
-	}
 
 	// タイムアウトを10分に設定
 	// ctxtimeout, cancel := context.WithTimeout(ctx, 600*time.Second)

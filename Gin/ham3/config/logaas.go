@@ -1,5 +1,14 @@
 package config
 
+import (
+	"os"
+)
+
+var (
+	HttpProxyUrl  = os.Getenv("HTTP_PROXY_URL")
+	HttpProxyPort = os.Getenv("HTTP_PROXY_PORT")
+)
+
 // RequestData is a struct that represents the request data for LOGaaS.
 type LogaasRequestData struct {
 	ClusterType                 string `json:"cluster-type"`
@@ -151,5 +160,35 @@ var Flavors = map[string]interface{}{
 		},
 		"jvm_heap": "16G",
 		"jvm_perm": "256M",
+	},
+}
+
+var Exporter = map[string]interface{}{
+	"aparo_ver": []string{"1.1.0", "1.2.4"},
+	"aiven_ver": []string{"1.3.15", "2.3.0", "2.5.0", "2.7.0", "2.9.0", "2.11.1"},
+}
+
+var HelmChartVersions = map[string]interface{}{
+	"opensearch": map[string]interface{}{
+		// "opensearch version": "helm chart version"
+		"1.1.0":  "opensearch-1.5.3",
+		"1.2.4":  "opensearch-1.8.3",
+		"1.3.15": "opensearch-1.25.0",
+		"2.3.0":  "opensearch-2.7.0",
+		"2.5.0":  "opensearch-2.10.0",
+		"2.7.0":  "opensearch-2.12.1",
+		"2.9.0":  "opensearch-2.14.1",
+		"2.11.1": "opensearch-2.17.3",
+	},
+	"dashboards": map[string]interface{}{
+		// "opensearch-dashboards version": "helm chart version"
+		"1.1.0":  "opensearch-dashboards-1.1.0",
+		"1.2.0":  "opensearch-dashboards-1.2.2",
+		"1.3.15": "opensearch-dashboards-1.18.0",
+		"2.3.0":  "opensearch-dashboards-2.5.3",
+		"2.5.0":  "opensearch-dashboards-2.8.0",
+		"2.7.0":  "opensearch-dashboards-2.10.0",
+		"2.9.0":  "opensearch-dashboards-2.12.0",
+		"2.11.1": "opensearch-dashboards-2.15.1",
 	},
 }
