@@ -65,7 +65,7 @@ func TokenAuth(token string) (string, bool, error) {
 	return ProjectId, IsAdmin, nil
 }
 
-func OpenstackProvider() (*gophercloud.ProviderClient, error) {
+func GetOpenstackProvider() (*gophercloud.ProviderClient, error) {
 	opts := gophercloud.AuthOptions{
 		IdentityEndpoint: os.Getenv("OPENSTACK_AUTH_ENDPOINT"),
 		Username:         os.Getenv("OPENSTACK_USERNAME"),
@@ -77,7 +77,7 @@ func OpenstackProvider() (*gophercloud.ProviderClient, error) {
 	return openstack.AuthenticatedClient(opts)
 }
 
-func CinderClient(provider *gophercloud.ProviderClient) (*gophercloud.ServiceClient, error) {
+func GetCinderClient(provider *gophercloud.ProviderClient) (*gophercloud.ServiceClient, error) {
 	client, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
 		Region: os.Getenv("OPENSTACK_REGION"),
 	})
@@ -89,14 +89,14 @@ func CinderClient(provider *gophercloud.ProviderClient) (*gophercloud.ServiceCli
 }
 
 func CreateCinderVolume(logaas_id string, requestData config.LogaasRequestData) error {
-	provider, err := OpenstackProvider()
+	provider, err := GetOpenstackProvider()
 	if err != nil {
 		errMessage := fmt.Errorf("An error occurred during authentication. err: %v", err)
 		return errMessage
 	}
 
 	// Cinderサービスクライアントを初期化
-	cinderClient, err := CinderClient(provider)
+	cinderClient, err := GetCinderClient(provider)
 	if err != nil {
 		return err
 	}
@@ -155,19 +155,16 @@ func CreateCinderVolume(logaas_id string, requestData config.LogaasRequestData) 
 }
 
 func DeleteCinderVolume(logaas_id string, requestData config.LogaasRequestData) error {
-	provider, err := OpenstackProvider()
+	provider, err := GetOpenstackProvider()
 	if err != nil {
 		errMessage := fmt.Errorf("An error occurred during authentication. err: %v", err)
 		return errMessage
 	}
 
 	// Cinderサービスクライアントを初期化
-	cinderClient, err := openstack.NewBlockStorageV3(provider, gophercloud.EndpointOpts{
-		Region: os.Getenv("OPENSTACK_REGION"),
-	})
+	cinderClient, err := GetCinderClient(provider)
 	if err != nil {
-		errMessage := fmt.Errorf("An error occurred during creating cinder client. err: %v", err)
-		return errMessage
+		return err
 	}
 	return nil
 }
