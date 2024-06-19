@@ -58,6 +58,7 @@ func SetupRouter(r *gin.Engine) {
 	db := models.ConnectDb()
 
 	v1 := r.Group("/api/v1")
+	v1.Use(middlewares.CheckTokenExists())
 
 	{
 		// CaaS関連ルート
