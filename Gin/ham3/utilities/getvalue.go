@@ -3,16 +3,16 @@ package utilities
 import (
 	"fmt"
 	"ham3/config"
+	"math"
 	"os"
 	"strconv"
-	"math"
 )
 
 func LogaasGetDefaultValue(requestData *config.LogaasRequestData) {
 	// デフォルト値の設定
 	requestData.OpenSearchVersion = "2.9.0"
 	requestData.OpenSearchDashboardsVersion = "2.9.0"
-	// requestData.ClusterType = "standard"
+	requestData.ClusterType = "standard"
 	requestData.ScaleSize = 3
 	requestData.BaseDomain = os.Getenv("BASE_DOMAIN")
 	requestData.K8sName = os.Getenv("KUBE_NAME")
@@ -32,20 +32,20 @@ func OpensearchGetHelmValue(logaas_id string, requestData config.LogaasRequestDa
 	var err error
 	var values map[string]interface{}
 
-
 	if requestData.ClusterType == "scalable" {
 		opensearchTypeList := []string{"master", "data", "client"}
+		var flavor map[string]interface{}
 		for _, opensearchType := range opensearchTypeList {
 			switch opensearchType {
 			case "master":
-				flavor := config.Flavors[requestData.MasterFlavor].(map[string]interface{})
+				flavor = config.Flavors[requestData.MasterFlavor].(map[string]interface{})
 			case "data":
-				flavor := config.Flavors[requestData.DataFlavor].(map[string]interface{})
+				flavor = config.Flavors[requestData.DataFlavor].(map[string]interface{})
 			case "client":
-				flavor := config.Flavors[requestData.ClientFlavor].(map[string]interface{})
+				flavor = config.Flavors[requestData.ClientFlavor].(map[string]interface{})
 			}
-			requests := flavor["requests"].(map[string]interface{})
-			limits := flavor["limits"].(map[string]interface{})
+			requests := flavor["requests"].(map[string]string)
+			limits := flavor["limits"].(map[string]string)
 			requests_cpu := requests["cpu"]
 			requests_memory := requests["memory"]
 			limits_cpu := limits["cpu"]
@@ -53,53 +53,69 @@ func OpensearchGetHelmValue(logaas_id string, requestData config.LogaasRequestDa
 			jvm_heap := flavor["jvm_heap"]
 			jvm_perm := flavor["jvm_perm"]
 
-			n_proc, err := strconv.Atoi(limits_cpu[len(limits_cpu)-1:])
-			if err != nil {
-				return nil, err
-			}
-
+			var n_proc int
 			if limits_cpu[len(limits_cpu)-1:] == "m" {
-				n_proc = math.Ceil(float64(n_proc) / 1000)
+				n, err := strconv.Atoi(limits_cpu[:len(limits_cpu)-1])
+				if err != nil {
+					return nil, err
+				}
+				n_proc = int(math.Ceil(float64(n) / 1000))
+			} else {
+				n, err := strconv.Atoi(limits_cpu)
+				if err != nil {
+					return nil, err
+				}
+				n_proc = n
 			}
 
-			values := map[string]interface{}{
+			opensearchYaml := GetOpensearchYamlTmpl()
+
+			values = map[string]interface{}{
 				"clusterName": logaas_id,
 				"nodeGroup":   opensearchType,
 				"roles": func() []string {
+					var opensearch_type []string
 					switch opensearchType {
 					case "master":
-						return []string{"master"}
+						opensearch_type = []string{"master"}
 					case "data":
-						return []string{"ingest", "data"}
+						opensearch_type = []string{"ingest", "data"}
 					case "client":
-						return []string{"ingest"}
+						opensearch_type = []string{"ingest"}
 					}
+					return opensearch_type
 				}(),
 				"masterService": fmt.Sprintf("%s-master", logaas_id),
 				"replicas": func() int {
+					var replicas int
 					switch opensearchType {
 					case "master":
-						return 3
+						replicas = 3
 					case "data":
-						return requestData.ScaleSize
+						replicas = requestData.ScaleSize
 					case "client":
-						return 2
+						replicas = 2
 					}
+					return replicas
 				}(),
 				"rbac": map[string]interface{}{
 					"create": func() bool {
+						var rbacCreate bool
 						if requestData.OpenSearchVersion == "1.1.0" {
-							return false
+							rbacCreate = false
 						} else {
-							return true
+							rbacCreate = true
 						}
+						return rbacCreate
 					}(),
 					"serviceAccountName": func() string {
+						var saName string
 						if requestData.OpenSearchVersion == "1.1.0" {
-							return "es"
+							saName = "es"
 						} else {
-							return fmt.Sprintf("%s-client", logaas_id)
+							saName = fmt.Sprintf("%s-client", logaas_id)
 						}
+						return saName
 					}(),
 				},
 				"persistence": map[string]interface{}{
@@ -121,11 +137,11 @@ func OpensearchGetHelmValue(logaas_id string, requestData config.LogaasRequestDa
 				},
 				"opensearchJavaOpts": fmt.Sprintf("-Xms%s -Xmx%s -XX:MaxMetaspaceSize=%s -Dhttp.proxyHost=%s -Dhttp.proxyPort=%s -Dhttps.proxyHost=%s -Dhttps.proxyPort=%s", jvm_heap, jvm_heap, jvm_perm, config.HttpProxyUrl, config.HttpProxyPort, config.HttpProxyUrl, config.HttpProxyPort),
 				"resources": map[string]interface{}{
-					"limits": map[string]interface{}{
+					"limits": map[string]string{
 						"cpu":    limits_cpu,
 						"memory": limits_memory,
 					},
-					"requests": map[string]interface{}{
+					"requests": map[string]string{
 						"cpu":    requests_cpu,
 						"memory": requests_memory,
 					},
@@ -134,39 +150,75 @@ func OpensearchGetHelmValue(logaas_id string, requestData config.LogaasRequestDa
 				"plugins": map[string]interface{}{
 					"enabled": true,
 					"intallList": func() []string {
+						var prometheusExporter []string
 						if Contains(config.Exporter["aparo_ver"].([]string), requestData.OpenSearchVersion) {
-							return []string{fmt.Sprintf("https://github.com/aparo/opensearch-prometheus-exporter/releases/download/%s/prometheus-exporter-%s.zip", requestData.OpenSearchVersion, requestData.OpenSearchVersion), "repository-s3"}
+							prometheusExporter = []string{fmt.Sprintf("https://github.com/aparo/opensearch-prometheus-exporter/releases/download/%s/prometheus-exporter-%s.zip", requestData.OpenSearchVersion, requestData.OpenSearchVersion), "repository-s3"}
 						} else if Contains(config.Exporter["aiven_ver"].([]string), requestData.OpenSearchVersion) {
-							return []string{fmt.Sprintf("https://github.com/aiven/prometheus-exporter-plugin-for-opensearch/releases/download/%s.0/prometheus-exporter-%s.0.zip", requestData.OpenSearchVersion, requestData.OpenSearchVersion), "repository-s3"}
+							prometheusExporter = []string{fmt.Sprintf("https://github.com/aiven/prometheus-exporter-plugin-for-opensearch/releases/download/%s.0/prometheus-exporter-%s.0.zip", requestData.OpenSearchVersion, requestData.OpenSearchVersion), "repository-s3"}
 						}
+						return prometheusExporter
 					}(),
 				},
 				"config": map[string]interface{}{
-					"opensearch.yml": map[string]interface{}{
-						"cluster.name": "opensearch-cluster",
-						"netwrok.host": "0.0.0.0",
-						"node": map[string]interface{}{
-							"processors": n_proc,
-						},
-					},
+					"opensearch.yml": opensearchYaml,
+				},
 				"extraEnvs": []map[string]interface{}{
 					{
-						"name":  "OPENSEARCH_INITIAL_ADMIN_PASSWORD",
-						"value": "Watchuserstep#3",
+						"name":  "DISABLE_INSTALL_DEMO_CONFIG",
+						"value": "true",
 					},
 				},
-				// "nameOverride": logaas_id,
+				"extraVolumes": []map[string]interface{}{
+					{
+						"name": "pem",
+						"configMap": map[string]string{
+							"name": "opensearch-pem-config",
+						},
+					},
+				},
+				"extraVolumeMounts": []map[string]interface{}{
+					{
+						"name":      "pem",
+						"mountPath": "/usr/share/opensearch/config/esnode-key.pem",
+						"subPath":   "esnode-key.pem",
+					},
+					{
+						"name":      "pem",
+						"mountPath": "/usr/share/opensearch/config/esnode.pem",
+						"subPath":   "esnode.pem",
+					},
+					{
+						"name":      "pem",
+						"mountPath": "/usr/share/opensearch/config/root-ca.pem",
+						"subPath":   "root-ca.pem",
+					},
+				},
+				"securityConfig": map[string]interface{}{
+					"config": map[string]interface{}{
+						"data": map[string]interface{}{
+							"action_groups.yml":  actionGroupsYaml,
+							"audit.yml":          auditYaml,
+							"config.yml":         configYaml,
+							"internal_users.yml": internalUsersYaml,
+							"nodes_dn.yml":       nodesDnYaml,
+							"roles.yml":          rolesYaml,
+							"roles_mapping.yml":  rolesMappingYaml,
+							"tenants.yml":        tenantsYaml,
+							"whitelist.yml":      whitelistYaml,
+						},
+					},
+				},
 			}
 		}
 	} else if requestData.ClusterType == "standard" {
 		opensearchTypeList := []string{"api"}
 		for _, opensearchType := range opensearchTypeList {
-			values := map[string]interface{}{
+			values = map[string]interface{}{
 				"clusterName": logaas_id,
 			}
 		}
 	} else {
-		err = "Invalid cluster type"
+		err := "Invalid cluster type"
 	}
 
 	return values, err
@@ -179,4 +231,55 @@ func Contains(slice []string, value string) bool {
 		}
 	}
 	return false
+}
+
+func GetOpensearchYamlTmpl() string {
+	opensearchYamlTmpl := `
+	cluster.name: opensearch-cluster
+	netwrok.host: 0.0.0.0
+	node:
+		processors: {{ .Nproc }}
+{{if .}}
+	prometheus.metric_name.prefix: "es_"
+{{end}}
+{{if .}}
+	plugins.security.ssl.http.enabled: false // standardのみ存在
+{{end}} 
+	plugins:
+		security:
+			ssl:
+				transport:
+					pemcert_filepath: esnode.pem
+					pemkey_filepath: esnode-key.pem
+					pemtrustedcas_filepath: root-ca.pem
+					enforce_hostname_verification: false
+				http:
+					enabled: false
+			allow_unsafe_democertificates: true
+			allow_default_init_securityindex: true
+			authcz:
+				admin_dn:
+					- CN=kirk,OU=client,O=client,L=test,C=de
+			audit.type: internal_opensearch
+			enable_snapshot_restore_privilege: true
+			check_snapshot_restore_write_privileges: true
+			restapi:
+				roles_enabled: ["all_access", "security_rest_api_access"]
+			system_indices:
+				enabled: true
+				indices:
+					[
+						".opendistro-alerting-config",
+						".opendistro-alerting-alert*",
+						".opendistro-anomaly-results*",
+						".opendistro-anomaly-detector*",
+						".opendistro-anomaly-checkpoints",
+						".opendistro-anomaly-detection-state",
+						".opendistro-reports-*",
+						".opendistro-notifications-*",
+						".opendistro-nootbooks",
+						".opendistro-asynchronous-search-response*",
+					]
+`
+	return opensearchYamlTmpl
 }

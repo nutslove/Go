@@ -30,11 +30,11 @@ type LogaasRequestData struct {
 
 var Flavors = map[string]interface{}{
 	"m1.tiny": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "125m",
 			"memory": "640Mi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "500m",
 			"memory": "1Gi",
 		},
@@ -42,11 +42,11 @@ var Flavors = map[string]interface{}{
 		"jvm_perm": "128M",
 	},
 	"m1.small": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "250m",
 			"memory": "1280Mi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "1000m",
 			"memory": "2Gi",
 		},
@@ -54,11 +54,11 @@ var Flavors = map[string]interface{}{
 		"jvm_perm": "256M",
 	},
 	"m1.medium": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "500m",
 			"memory": "4352Mi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "2000m",
 			"memory": "8Gi",
 		},
@@ -66,11 +66,11 @@ var Flavors = map[string]interface{}{
 		"jvm_perm": "256M",
 	},
 	"m1.large": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "1000m",
 			"memory": "8448Mi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "4000m",
 			"memory": "16Gi",
 		},
@@ -78,11 +78,11 @@ var Flavors = map[string]interface{}{
 		"jvm_perm": "256M",
 	},
 	"m1.xlarge": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "2000m",
 			"memory": "16640Mi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "8000m",
 			"memory": "32Gi",
 		},
@@ -90,11 +90,11 @@ var Flavors = map[string]interface{}{
 		"jvm_perm": "256M",
 	},
 	"d1.tiny": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "125m",
 			"memory": "1Gi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "500m",
 			"memory": "1Gi",
 		},
@@ -102,11 +102,11 @@ var Flavors = map[string]interface{}{
 		"jvm_perm": "128M",
 	},
 	"d1.small": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "250m",
 			"memory": "2Gi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "1000m",
 			"memory": "2Gi",
 		},
@@ -114,11 +114,11 @@ var Flavors = map[string]interface{}{
 		"jvm_perm": "256M",
 	},
 	"d1.medium": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "500m",
 			"memory": "8Gi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "2000m",
 			"memory": "8Gi",
 		},
@@ -126,11 +126,11 @@ var Flavors = map[string]interface{}{
 		"jvm_perm": "256M",
 	},
 	"d1.large": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "1000m",
 			"memory": "16Gi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "4000m",
 			"memory": "16Gi",
 		},
@@ -138,11 +138,11 @@ var Flavors = map[string]interface{}{
 		"jvm_perm": "256M",
 	},
 	"d1.mlarge": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "1000m",
 			"memory": "32Gi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "4000m",
 			"memory": "32Gi",
 		},
@@ -150,11 +150,11 @@ var Flavors = map[string]interface{}{
 		"jvm_perm": "256M",
 	},
 	"d1.xlarge": map[string]interface{}{
-		"requests": map[string]interface{}{
+		"requests": map[string]string{
 			"cpu":    "2000m",
 			"memory": "32Gi",
 		},
-		"limits": map[string]interface{}{
+		"limits": map[string]string{
 			"cpu":    "8000m",
 			"memory": "32Gi",
 		},
@@ -169,7 +169,7 @@ var Exporter = map[string]interface{}{
 }
 
 var HelmChartVersions = map[string]interface{}{
-	"opensearch": map[string]interface{}{
+	"opensearch": map[string]string{
 		// "opensearch version": "helm chart version"
 		"1.1.0":  "opensearch-1.5.3",
 		"1.2.4":  "opensearch-1.8.3",
@@ -180,7 +180,7 @@ var HelmChartVersions = map[string]interface{}{
 		"2.9.0":  "opensearch-2.14.1",
 		"2.11.1": "opensearch-2.17.3",
 	},
-	"dashboards": map[string]interface{}{
+	"dashboards": map[string]string{
 		// "opensearch-dashboards version": "helm chart version"
 		"1.1.0":  "opensearch-dashboards-1.1.0",
 		"1.2.0":  "opensearch-dashboards-1.2.2",

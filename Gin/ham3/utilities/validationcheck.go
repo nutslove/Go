@@ -7,9 +7,9 @@ import (
 func CheckLogaasCreateParameters(requestData config.LogaasRequestData) (bool, string) {
 	var errExist bool
 	var errMessage string
-	if requestData.ClusterType == "" {
+	if requestData.ClusterType != "scalable" || requestData.ClusterType != "standard" {
 		errExist = true
-		errMessage = "cluster-type is required. "
+		errMessage = "cluster-type must be either 'scalable' or 'standard'."
 	}
 
 	return errExist, errMessage
