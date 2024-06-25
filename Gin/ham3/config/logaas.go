@@ -192,3 +192,58 @@ var HelmChartVersions = map[string]interface{}{
 		"2.11.1": "opensearch-dashboards-2.15.1",
 	},
 }
+
+var OpensearchYamlTmpl = `
+cluster.name: opensearch-cluster
+netwrok.host: 0.0.0.0
+node:
+	processors: {{ .Nproc }}
+{{- if Contains .ExporterAivenVer .OpenSearchVer}}
+prometheus.metric_name.prefix: "es_"
+{{- end}}
+{{- if eq .ClusterType "standard"}}
+plugins.security.ssl.http.enabled: false // standardのみ存在
+{{- end}} 
+plugins:
+	security:
+		ssl:
+			transport:
+				pemcert_filepath: esnode.pem
+				pemkey_filepath: esnode-key.pem
+				pemtrustedcas_filepath: root-ca.pem
+				enforce_hostname_verification: false
+			http:
+				enabled: false
+		allow_unsafe_democertificates: true
+		allow_default_init_securityindex: true
+		authcz:
+			admin_dn:
+				- CN=kirk,OU=client,O=client,L=test,C=de
+		audit.type: internal_opensearch
+		enable_snapshot_restore_privilege: true
+		check_snapshot_restore_write_privileges: true
+		restapi:
+			roles_enabled: ["all_access", "security_rest_api_access"]
+		system_indices:
+			enabled: true
+			indices:
+				[
+					".opendistro-alerting-config",
+					".opendistro-alerting-alert*",
+					".opendistro-anomaly-results*",
+					".opendistro-anomaly-detector*",
+					".opendistro-anomaly-checkpoints",
+					".opendistro-anomaly-detection-state",
+					".opendistro-reports-*",
+					".opendistro-notifications-*",
+					".opendistro-nootbooks",
+					".opendistro-asynchronous-search-response*",
+				]
+`
+
+var ActionGroupsYaml = `
+---
+_meta:
+  type: "actiongroups"
+	config_version: 2
+`

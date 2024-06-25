@@ -1,11 +1,13 @@
 package utilities
 
 import (
+	"bytes"
 	"fmt"
 	"ham3/config"
 	"math"
 	"os"
 	"strconv"
+	"text/template"
 )
 
 func LogaasGetDefaultValue(requestData *config.LogaasRequestData) {
@@ -29,6 +31,12 @@ func LogaasGetDefaultValue(requestData *config.LogaasRequestData) {
 
 func OpensearchGetHelmValue(logaas_id string, requestData config.LogaasRequestData) (map[string]interface{}, error) {
 
+	type OpensearchData struct {
+		Nproc            int
+		OpenSearchVer    string
+		ExporterAivenVer []string
+		ClusterType      string
+	}
 	var err error
 	var values map[string]interface{}
 
@@ -68,7 +76,30 @@ func OpensearchGetHelmValue(logaas_id string, requestData config.LogaasRequestDa
 				n_proc = n
 			}
 
-			opensearchYaml := GetOpensearchYamlTmpl()
+			funcMap := template.FuncMap{
+				"contains": Contains,
+			}
+			t, err := template.New(logaas_id).Funcs(funcMap).Parse(config.OpensearchYamlTmpl)
+			if err != nil {
+				return nil, err
+			}
+
+			OpenSearchTmpldata := OpensearchData{
+				Nproc:            n_proc,
+				OpenSearchVer:    requestData.OpenSearchVersion,
+				ExporterAivenVer: config.Exporter.(map[string]interface{})["aiven_ver"],
+				ClusterType:      requestData.ClusterType,
+			}
+
+			// Templateの結果を格納する変数を定義
+			var buf bytes.Buffer
+			err = t.Execute(&buf, OpenSearchTmpldata)
+			if err != nil {
+				return nil, err
+			}
+
+			// Templateの結果を文字列に変換
+			opensearchYaml := buf.String()
 
 			values = map[string]interface{}{
 				"clusterName": logaas_id,
@@ -196,7 +227,7 @@ func OpensearchGetHelmValue(logaas_id string, requestData config.LogaasRequestDa
 				"securityConfig": map[string]interface{}{
 					"config": map[string]interface{}{
 						"data": map[string]interface{}{
-							"action_groups.yml":  actionGroupsYaml,
+							"action_groups.yml":  config.ActionGroupsYaml,
 							"audit.yml":          auditYaml,
 							"config.yml":         configYaml,
 							"internal_users.yml": internalUsersYaml,
@@ -208,6 +239,39 @@ func OpensearchGetHelmValue(logaas_id string, requestData config.LogaasRequestDa
 						},
 					},
 				},
+			}
+
+			// OpenSearchのバージョンが1.1.0より上の場合、valuesにextraObjectsを追加する
+			if requestData.OpenSearchVersion > "1.1.0" {
+				extraObjectsValue := []map[string]interface{}{
+					{
+						"apiVersion": "rbac.authorization.k8s.io/v1",
+						"kind":       "RoleBinding",
+						"metadata": map[string]string{
+							"name":      fmt.Sprintf("scc:nonroot:%s-%s", logaas_id, opensearchType),
+							"namespace": "opensearch",
+						},
+						"roleRef": map[string]string{
+							"apiGroup": "rbac.authorization.k8s.io",
+							"kind":     "ClusterRole",
+							"name":     "system:openshift:scc:nonroot",
+						},
+						"subjects": []map[string]string{
+							{
+								"kind":      "ServiceAccount",
+								"name":      fmt.Sprintf("%s-%s", logaas_id, opensearchType),
+								"namespace": "opensearch",
+							},
+						},
+					},
+				}
+				AddToMapWithCondition(values, "extraObjects", extraObjectsValue)
+			}
+
+			// OpenSearchのバージョンが2.0.0より上の場合、valuesのsecurityConfigフィールドにpathを追加する
+			if requestData.OpenSearchVersion > "2.0.0" {
+				pathValue := "/usr/share/opensearch/config/opensearch-security"
+				AddToMapWithCondition(values["securityConfig"].(map[string]interface{}), "path", pathValue)
 			}
 		}
 	} else if requestData.ClusterType == "standard" {
@@ -233,53 +297,6 @@ func Contains(slice []string, value string) bool {
 	return false
 }
 
-func GetOpensearchYamlTmpl() string {
-	opensearchYamlTmpl := `
-	cluster.name: opensearch-cluster
-	netwrok.host: 0.0.0.0
-	node:
-		processors: {{ .Nproc }}
-{{if .}}
-	prometheus.metric_name.prefix: "es_"
-{{end}}
-{{if .}}
-	plugins.security.ssl.http.enabled: false // standardのみ存在
-{{end}} 
-	plugins:
-		security:
-			ssl:
-				transport:
-					pemcert_filepath: esnode.pem
-					pemkey_filepath: esnode-key.pem
-					pemtrustedcas_filepath: root-ca.pem
-					enforce_hostname_verification: false
-				http:
-					enabled: false
-			allow_unsafe_democertificates: true
-			allow_default_init_securityindex: true
-			authcz:
-				admin_dn:
-					- CN=kirk,OU=client,O=client,L=test,C=de
-			audit.type: internal_opensearch
-			enable_snapshot_restore_privilege: true
-			check_snapshot_restore_write_privileges: true
-			restapi:
-				roles_enabled: ["all_access", "security_rest_api_access"]
-			system_indices:
-				enabled: true
-				indices:
-					[
-						".opendistro-alerting-config",
-						".opendistro-alerting-alert*",
-						".opendistro-anomaly-results*",
-						".opendistro-anomaly-detector*",
-						".opendistro-anomaly-checkpoints",
-						".opendistro-anomaly-detection-state",
-						".opendistro-reports-*",
-						".opendistro-notifications-*",
-						".opendistro-nootbooks",
-						".opendistro-asynchronous-search-response*",
-					]
-`
-	return opensearchYamlTmpl
+func AddToMapWithCondition(m map[string]interface{}, key string, value interface{}) {
+	m[key] = value
 }
