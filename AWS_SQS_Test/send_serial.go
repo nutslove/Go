@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	QueueURL = "https://sqs.ap-northeast-1.amazonaws.com/299413808364/lee_test.fifo"
+	QueueURL = "https://sqs.ap-northeast-1.amazonaws.com/<AWSアカウントID>/xx.fifo"
 )
 
 func sendmsg(i int, svc *sqs.SQS) {
