@@ -112,24 +112,6 @@ func init() {
 	}
 }
 
-///////////// ToDo /////////////
-// 【完】AWS SDKを使って、IAMユーザの存在チェックを実装すること！
-// 【完】goroutineを使って並列処理を実装すること！
-// 【完】テキストファイル(OSユーザリスト)をS3からダウンロードして読み込んでリストにOSユーザが存在するか実装！
-// 【完】gin-with-otel側でこのuser-exist-checkをGETリクエストで呼び出して、gin-with-otel側でuser-exist-checkからの結果をjson形式で受け取って表示するように実装！
-// 【完】Ginを使ってGetリクエストを受け取って、存在しないAD,LDAP,IAM,DB,OSユーザの情報をjson形式で返すように実装！
-// → ADとLDAP以外は実装完了。DBは実態に合わせて実装すること
-// Gin側でjson形式でデータを送るようにして、うけとったJsonリクエストを構造体に変換すること！
-// IAM,DB,OS,ADなど処理ごとにSpanを作成すること！
-// エラーハンドリングを実装すること！（どういう時にpanicするか、どういう時にエラーを返すか、どういう時にログを出力するかなど）
-// jsonを扱う練習
-// テストコードを書くこと！
-// ログ出力を実装すること！
-// OpenTelemetry設定を追加すること！
-// context.TODO()が何か調べること！
-// AWS GO SDK V2のの仕様ｋを調べること！(config.LoadDefaultConfigやNewFromConfig、errors.Asやsmithy.APIErrorなど)
-///////////// ToDo /////////////
-
 type UserExistCheck struct {
 	Db_User       []string `json:"db_user"`
 	Iam_User      []string `json:"iam_user"`
