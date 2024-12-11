@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+option go_package = "./pb";
+
 message Employee {
   int32 id = 1;
   string name = 2;
