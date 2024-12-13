@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -38,6 +41,39 @@ func (*server) ListFiles(ctx context.Context, req *pb.ListFilesRequest) (*pb.Lis
 	}
 
 	return res, nil
+}
+
+func (*server) Download(req *pb.DownloadRequest, stream pb.FileService_DownloadServer) error {
+	fmt.Println("Download was invoked")
+
+	filename := req.GetFilename()
+	path := "/home/centos/my-go/Go/gRPC_udemy/storage/" + filename
+
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	buf := make([]byte, 5)
+	for {
+		n, err := file.Read(buf)
+		if n == 0 || err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		res := &pb.DownloadResponse{Data: buf[:n]}
+		sendErr := stream.Send(res) // responseを返す
+		if sendErr != nil {
+			return sendErr
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	return nil
 }
 
 func main() {
