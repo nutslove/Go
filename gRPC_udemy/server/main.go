@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -74,6 +75,55 @@ func (*server) Download(req *pb.DownloadRequest, stream pb.FileService_DownloadS
 	}
 
 	return nil
+}
+
+func (*server) Upload(stream pb.FileService_UploadServer) error {
+	fmt.Println("Upload was invoked")
+
+	var buf bytes.Buffer
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			res := &pb.UploadResponse{Size: int32(buf.Len())}
+			return stream.SendAndClose(res)
+		}
+		if err != nil {
+			return err
+		}
+
+		data := req.GetData()
+		log.Printf("received data(bytes): %v", data)
+		log.Printf("received data(string): %v", string(data))
+		buf.Write(data)
+	}
+}
+
+func (*server) UploadAndNotifyProgress(stream pb.FileService_UploadAndNotifyProgressServer) error {
+	fmt.Println("UploadAndNotifyProgress was invoked")
+
+	size := 0
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		data := req.GetData()
+		log.Printf("received data: %v", data)
+		size += len(data)
+
+		res := &pb.UploadAndNotifyProgressResponse{
+			Msg: fmt.Sprintf("received %vbytes", size),
+		}
+		err = stream.Send(res)
+		if err != nil {
+			return err
+		}
+	}
 }
 
 func main() {
