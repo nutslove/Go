@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"protobuf/pb"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -19,15 +21,42 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"google.golang.org/grpc"
 )
+
+func callUpload(ctx context.Context, client pb.StreamServiceClient, tenant string, data string) {
+	req := &pb.StreamRequest{
+		Tenant: tenant,
+		Data:   data,
+	}
+	res, err := client.Upload(ctx, req)
+	if err != nil {
+		log.Fatalf("request to gRPC server failed: %v", err)
+	}
+
+	fmt.Println("data size:", res.GetSize())
+}
 
 func main() {
 	r := gin.Default()
 	streaming := r.Group("log/api/v1")
 	streaming.Use(TenantidCheck())
 
+	// gRPC
+	conn, err := grpc.Dial("localhost:50051",
+		grpc.WithInsecure(),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+	)
+	if err != nil {
+		log.Fatalf("Failed to connect: %v", err)
+	}
+	defer conn.Close()
+
+	client := pb.NewStreamServiceClient(conn)
+
 	// #### Trace関連設定
-	/// gRPC
+	/// otlp/gRPC
 	exporter, err := otlptracegrpc.New(context.Background(),
 		otlptracegrpc.WithEndpoint("10.111.1.179:4317"),
 		otlptracegrpc.WithInsecure(), // TLSを無効にする場合に指定
@@ -36,7 +65,7 @@ func main() {
 		log.Fatalln("Failed to set exporter for otlp/grpc")
 	}
 
-	/// HTTP
+	/// otlp/HTTP
 	// exporter, err := otlptracehttp.New(context.Background(),
 	// 	otlptracehttp.WithEndpoint("10.111.1.179:4318"),
 	// 	otlptracehttp.WithInsecure(), // TLSを無効にする場合に指定
@@ -53,12 +82,12 @@ func main() {
 	// 		semconv.ServiceVersionKey.String("1.0.0"),
 	// 	),
 	// )
-	if err != nil {
-		fmt.Errorf("failed to create resource: %w", err)
-	}
+	// if err != nil {
+	// 	fmt.Errorf("failed to create resource: %w", err)
+	// }
 	resource := resource.NewWithAttributes(
-		semconv.SchemaURL,                          // SchemaURL is the schema URL used to generate the trace ID. Must be set to an absolute URL.
-		semconv.ServiceNameKey.String("streaming"), // ServiceNameKey is the key used to identify the service name in a Resource.
+		semconv.SchemaURL,                         // SchemaURL is the schema URL used to generate the trace ID. Must be set to an absolute URL.
+		semconv.ServiceNameKey.String("receiver"), // ServiceNameKey is the key used to identify the service name in a Resource.
 		semconv.ServiceVersionKey.String("1.0.1"),
 	)
 
@@ -113,8 +142,8 @@ func main() {
 	streaming.POST("/push", func(c *gin.Context) {
 		// 処理時間の計測
 		startTime := time.Now()
-		// ctx, span := tr.Start(context.Background(), "data streaming started")
-		_, span := tr.Start(context.Background(), "data push")
+		ctx, span := tr.Start(context.Background(), "data streaming started")
+		// _, span := tr.Start(context.Background(), "data push")
 		defer span.End()
 
 		// Add attributes to the span
@@ -127,14 +156,17 @@ func main() {
 		)
 		span.AddEvent("data push executed")
 
-		fmt.Println("Test Push!")
+		// あとで実際のデータ連携処理を実装
+		fmt.Println("Data Push!")
+		callUpload(ctx, client, c.GetHeader("Tenant-id"), "test data")
+
 		duration := time.Since(startTime).Seconds()
 		// exemplar付きでメトリクスを記録
 		// トレースIDとスパンIDを属性として追加
 		histogram.Record(ctxmetric, duration,
 			metric.WithAttributes(
-				attribute.String("trace_id", span.SpanContext().TraceID().String()),
-				attribute.String("span_id", span.SpanContext().SpanID().String()),
+				attribute.String("service", "streaming"),
+				attribute.String("component", "receiver"),
 			),
 		)
 		fmt.Println("trace-id:", span.SpanContext().TraceID().String())
