@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option go_package = "./pb";
+
+message StreamRequest {
+  string tenant = 1;
+  string data = 2;
+}
+
+message StreamResponse {
+  int32 size = 1;
+}
+
+service StreamService {
+  rpc Upload (StreamRequest) returns (StreamResponse);
+}
