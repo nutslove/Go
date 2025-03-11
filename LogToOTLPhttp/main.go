@@ -2,125 +2,148 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
-	"strings"
-	"sync"
 	"time"
+
+	"go.opentelemetry.io/contrib/bridges/otelslog"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
+	"go.opentelemetry.io/otel/log/global"
+	sdk "go.opentelemetry.io/otel/sdk/log"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-// LogBuffer はログをバッファリングし、定期的にフラッシュするための構造体
-type LogBuffer struct {
-	buffer    *strings.Builder
-	mutex     sync.Mutex
-	batchSize int
-	ticker    *time.Ticker
-	sid       string
-	label     map[string]string
-	backend   LogBackend
-	byteCount int // 現在のバイト数を追跡
+// OTLPClient はOpenTelemetryを使ってログを送信するクライアント
+type OTLPClient struct {
+	logger         *slog.Logger
+	loggerProvider *sdk.LoggerProvider
+	attributes     map[string]string
 }
 
-// LogBackend はログの保存先を抽象化するインターフェース
-type LogBackend interface {
-	Flush(logs string) error
-}
-
-// MockBackend はテスト用のバックエンド実装
-type MockBackend struct{}
-
-func (b *MockBackend) Flush(logs string) error {
-	fmt.Printf("Flushing logs to backend: %d bytes\n", len(logs))
-	// 実際の実装ではDBや外部APIへの書き込み処理を行う
-	return nil
-}
-
-// NewLogBuffer はバッファの新しいインスタンスを作成
-func NewLogBuffer(batchSize int, flushInterval time.Duration, sid string, label map[string]string, backend LogBackend) *LogBuffer {
-	buffer := &LogBuffer{
-		buffer:    &strings.Builder{},
-		batchSize: batchSize,
-		sid:       sid,
-		label:     label,
-		backend:   backend,
-		byteCount: 0,
+// NewOTLPClient は新しいOTLPクライアントを作成します
+func NewOTLPClient(ctx context.Context, sid string, endpoint string, attributes map[string]string) (*OTLPClient, error) {
+	// リソース情報の設定
+	serviceName := "logger"
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceName(serviceName),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	// 定期的なフラッシュのためのティッカーを開始
-	buffer.ticker = time.NewTicker(flushInterval)
-	go buffer.flushRoutine()
-
-	return buffer
-}
-
-// Write はログをバッファに追加し、必要に応じてフラッシュ
-func (lb *LogBuffer) Write(logEntry string) error {
-	lb.mutex.Lock()
-	defer lb.mutex.Unlock()
-
-	// 改行を含むログエントリのサイズを計算
-	entrySize := len(logEntry) + 1 // +1 for newline
-
-	// ログエントリをバッファに追加
-	lb.buffer.WriteString(logEntry)
-	lb.buffer.WriteByte('\n')
-	lb.byteCount += entrySize
-
-	// バッファサイズがバッチサイズを超えたらフラッシュ
-	if lb.byteCount >= lb.batchSize {
-		return lb.flush()
-	}
-	return nil
-}
-
-// フラッシュループの処理
-func (lb *LogBuffer) flushRoutine() {
-	for range lb.ticker.C {
-		lb.mutex.Lock()
-		if lb.byteCount > 0 {
-			if err := lb.flush(); err != nil {
-				log.Printf("Error flushing logs: %v", err)
-			}
-		}
-		lb.mutex.Unlock()
-	}
-}
-
-// Stop はバッファの処理を停止し、残りのログをフラッシュ
-func (lb *LogBuffer) Stop() error {
-	lb.ticker.Stop()
-	lb.mutex.Lock()
-	defer lb.mutex.Unlock()
-	return lb.flush()
-}
-
-// flush はバッファの内容をバックエンドに送信
-func (lb *LogBuffer) flush() error {
-	if lb.byteCount == 0 {
-		return nil
+	// Lokiテナント用のヘッダー設定
+	headers := map[string]string{
+		"X-Scope-OrgID": sid,
 	}
 
-	// バッファの内容を文字列として取得
-	logs := lb.buffer.String()
+	// OTLP HTTP エクスポーターの作成
+	exporter, err := otlploghttp.New(ctx,
+		otlploghttp.WithEndpoint(endpoint),
+		otlploghttp.WithURLPath("/otlp/v1/logs"),
+		otlploghttp.WithHeaders(headers),
+		otlploghttp.WithInsecure(), // 本番環境ではTLSを使用すること
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create log exporter: %w", err)
+	}
 
-	// バッファをリセット
-	lb.buffer.Reset()
-	lb.byteCount = 0
+	// バッチ処理の設定を最適化
+	// 注意: 最新のOpenTelemetry SDKでは設定オプションが異なる可能性があります
+	// 実際のSDKのバージョンに合わせて適切なオプションを使用してください
+	loggerProvider := sdk.NewLoggerProvider(
+		sdk.WithResource(res),
+		sdk.WithProcessor(sdk.NewBatchProcessor(exporter)),
+	)
 
-	// バックエンドにログを送信
-	return lb.backend.Flush(logs)
+	// グローバルなロガープロバイダーとして設定
+	global.SetLoggerProvider(loggerProvider)
+
+	// ロガー作成
+	logger := otelslog.NewLogger(serviceName)
+
+	return &OTLPClient{
+		logger:         logger,
+		loggerProvider: loggerProvider,
+		attributes:     attributes,
+	}, nil
+}
+
+// SendLog はログをOpenTelemetryに送信します
+func (c *OTLPClient) SendLog(message string) {
+	// 空のログは無視
+	if message == "" {
+		return
+	}
+
+	// 属性の設定
+	attrs := []attribute.KeyValue{}
+	for k, v := range c.attributes {
+		attrs = append(attrs, attribute.String(k, v))
+	}
+
+	// ログレベルに応じた送信 - ここではすべてエラーレベルとして送信
+	// TODO: ALB,CloudFrontのログの場合、ログの中からステータスコードを取得して、それにあったログレベルを設定する
+	// c.logger.Error(message)
+	// c.logger.Info(message)
+	c.logger.Warn(message)
+	// c.logger.Debug(message)
+	// c.logger.Log(message)
+}
+
+// FlushLogs はログのバッチを強制的に送信します
+func (c *OTLPClient) FlushLogs(timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return c.loggerProvider.ForceFlush(ctx)
+}
+
+// Shutdown はOTLPクライアントを正常にシャットダウンします
+func (c *OTLPClient) Shutdown(timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return c.loggerProvider.Shutdown(ctx)
 }
 
 func main() {
-	///// TODO: SQS or SNSからのS3オブジェクト情報から、SID・ログ種別を確認して、SID・ログ種別ごとにlogBufferインスタンスを作成する
+	ctx := context.Background()
+
+	// OpenTelemetryクライアントの設定
+	endpoint := "192.168.0.177:31100"
+
+	// カスタム属性の設定
+	attributes := map[string]string{
+		"environment": "development",
+		"application": "log-forwarder",
+		"LogType":     "alb",
+	}
+
+	// OTLPクライアントの作成
+	otlpClient, err := NewOTLPClient(ctx, "fake", endpoint, attributes)
+	if err != nil {
+		log.Fatalf("Failed to create OTLP client: %v", err)
+	}
+
+	// アプリケーション終了時にログを確実に送信し、シャットダウン
+	defer func() {
+		if err := otlpClient.FlushLogs(5 * time.Second); err != nil {
+			log.Printf("Failed to flush logs: %v", err)
+		}
+		if err := otlpClient.Shutdown(5 * time.Second); err != nil {
+			log.Printf("Failed to shutdown client: %v", err)
+		}
+	}()
 
 	filePath := "/mnt/c/Users/nuts_/Github/Go/LogToOTLPhttp/log.txt"
 
-	// // アプリケーション終了時にバッファを停止
-	// defer logBuffer.Stop()
-
 	for {
+		// ファイルの存在確認
 		_, err := os.Stat(filePath)
 		if os.IsNotExist(err) {
 			log.Printf("ファイルは存在しません: %s\n", filePath)
@@ -132,12 +155,6 @@ func main() {
 			continue
 		}
 
-		label := map[string]string{
-			"LogType": "alb",
-		}
-		// 例: 5MB以上または60秒ごとにフラッシュするバッファの作成
-		logBuffer := NewLogBuffer(1024*1024*5, 60*time.Second, "test", label, &MockBackend{})
-
 		log.Printf("ファイルが存在します: %s - 内容を読み込みます\n", filePath)
 		// ファイルを開く
 		file, err := os.Open(filePath)
@@ -147,7 +164,7 @@ func main() {
 			continue
 		}
 
-		// ファイルを行ごとに読み込む
+		// ファイルを行ごとに読み込んで直接OpenTelemetryに送信
 		scanner := bufio.NewScanner(file)
 		lineCount := 0
 
@@ -155,14 +172,20 @@ func main() {
 		for scanner.Scan() {
 			lineCount++
 			line := scanner.Text()
-			if err := logBuffer.Write(line); err != nil {
-				log.Printf("Error writing log: %v", err)
-			}
+
+			// ログを直接OpenTelemetryに送信
+			otlpClient.SendLog(line)
+
 			log.Printf("行 %d: %s\n", lineCount, line)
 		}
 
 		if err := scanner.Err(); err != nil {
 			log.Printf("ファイル読み込み中にエラーが発生しました: %v\n", err)
+		}
+
+		// 読み込み完了後、バッファに残っているログを確実に送信
+		if err := otlpClient.FlushLogs(5 * time.Second); err != nil {
+			log.Printf("Failed to flush logs after reading file: %v", err)
 		}
 
 		log.Printf("ファイル読み込み完了。合計 %d 行\n", lineCount)
